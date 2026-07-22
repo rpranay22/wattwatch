@@ -1,0 +1,26 @@
+WattWatch API build marker
+===========================
+Build: v0.3.0 + CRM integration + crash-safety fix
+Generated: this build includes src/safeRouter.js
+
+HOW TO CONFIRM YOU HAVE THIS EXACT BUILD:
+  dir src\safeRouter.js       <- must exist
+  type VERSION.txt            <- must show this file
+
+If src\safeRouter.js does NOT exist in your folder, you have an OLDER
+build and must re-extract. Do not trust folder names or dates — only
+trust whether src\safeRouter.js physically exists.
+
+Files that only exist in THIS build (did not exist before):
+  src/safeRouter.js
+  test/crashSafety.test.mjs
+  CRASH_FIX.md
+
+Files that changed in THIS build (existed before, but content differs):
+  src/db.js           (added dateStrings fix)
+  src/usage.js         (removed the .toISOString() bug)
+  src/server.js        (added process-level safety net)
+  src/routes/*.js       (all 9 route files now use safeRouter, not Router)
+
+UPDATE: added "npm run add-user" — creates a WattWatch app user directly in
+the database. Use this when the app has no signup (login-only build).
