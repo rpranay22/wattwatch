@@ -7,6 +7,7 @@ import mysql from 'mysql2/promise';
 // Left optional so local development against plain MySQL still works.
 const useSsl = String(process.env.DB_SSL || '').toLowerCase() === 'true';
 
+
 export const db = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT || 3306),
@@ -25,7 +26,14 @@ export const db = mysql.createPool({
   dateStrings: ['DATE'],
   ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {}),
 });
-
+console.log('DB Config:', {
+  host: process.env.DB_HOST || 'localhost',
+  port: Number(process.env.DB_PORT || 3306),
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'wattwatch',
+  waitForConnections: true,
+});
 export async function pingDb() {
   const c = await db.getConnection();
   try { await c.query('SELECT 1'); return true; } finally { c.release(); }
