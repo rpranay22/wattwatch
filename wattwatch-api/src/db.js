@@ -1,5 +1,5 @@
-import mysql from 'mysql2/promise';
 import 'dotenv/config';
+import mysql from 'mysql2/promise';
 
 // DB_SSL: your CRM's Sequelize config hard-requires SSL (typical of a
 // managed cloud MySQL such as PlanetScale/Aiven). If WattWatch and the CRM
