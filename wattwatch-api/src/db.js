@@ -1,40 +1,33 @@
 import 'dotenv/config';
-import mysql from 'mysql2/promise';
+import { Sequelize } from 'sequelize';
+import { sequelize } from './models/index.js';
 
-// DB_SSL: your CRM's Sequelize config hard-requires SSL (typical of a
-// managed cloud MySQL such as PlanetScale/Aiven). If WattWatch and the CRM
-// share that same host, this pool needs the same SSL setting to connect.
-// Left optional so local development against plain MySQL still works.
 const useSsl = String(process.env.DB_SSL || '').toLowerCase() === 'true';
+const dbName = process.env.DB_NAME || 'wattwatch';
 
+/** Create the database if it doesn't exist, then sync all models (creates tables). */
+export async function initDatabase() {
+  const bootstrap = new Sequelize('', process.env.DB_USER || 'root', process.env.DB_PASSWORD || '', {
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT || 3306),
+    dialect: 'mysql',
+    logging: false,
+    dialectOptions: useSsl ? { ssl: { rejectUnauthorized: false } } : {},
+  });
 
-export const db = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'wattwatch',
-  waitForConnections: true,
-  connectionLimit: 10,
-  // DATE columns come back as plain 'YYYY-MM-DD' strings instead of JS Date
-  // objects. A MySQL DATE has no timezone; converting it through a JS Date
-  // and back out via toISOString() can silently shift the calendar day
-  // depending on the server's local timezone, and calling .toISOString() on
-  // whatever the driver actually returns was the root cause of the Usage
-  // Calendar crash. Skipping the JS Date round-trip removes that entire
-  // class of bug.
-  dateStrings: ['DATE'],
-  ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {}),
-});
-console.log('DB Config:', {
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'wattwatch',
-  waitForConnections: true,
-});
-export async function pingDb() {
-  const c = await db.getConnection();
-  try { await c.query('SELECT 1'); return true; } finally { c.release(); }
+  await bootstrap.query(
+    `CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
+  );
+  await bootstrap.close();
+
+  await sequelize.authenticate();
+  await sequelize.sync();
+  console.log(`Database "${dbName}" ready — all tables synced.`);
 }
+
+export async function pingDb() {
+  await sequelize.authenticate();
+  return true;
+}
+
+export { sequelize };

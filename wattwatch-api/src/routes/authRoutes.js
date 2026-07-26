@@ -1,9 +1,9 @@
 // APP user auth. Writes to the users table only.
-import { safeRouter } from '../safeRouter.js';
 import { randomUUID } from 'crypto';
-import { db } from '../db.js';
-import { hashPassword, verifyPassword, signUserToken, requireUser } from '../auth.js';
 import { logActivity } from '../activity.js';
+import { hashPassword, requireUser, signUserToken, verifyPassword } from '../auth.js';
+import { User, Profile } from '../models/index.js';
+import { safeRouter } from '../safeRouter.js';
 
 const router = safeRouter();
 const isEmail = (s) => typeof s === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
@@ -13,16 +13,16 @@ router.post('/signup', async (req, res) => {
   if (!isEmail(email)) return res.status(400).json({ error: 'Enter a valid email address' });
   if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
-  const [dupe] = await db.execute('SELECT id FROM users WHERE email = ?', [email.toLowerCase().trim()]);
-  if (dupe.length) return res.status(409).json({ error: 'That email is already registered' });
+  const normalized = email.toLowerCase().trim();
+  const dupe = await User.findOne({ where: { email: normalized } });
+  if (dupe) return res.status(409).json({ error: 'That email is already registered' });
 
   const id = randomUUID();
-  await db.execute('INSERT INTO users (id, email, password_hash) VALUES (?,?,?)',
-    [id, email.toLowerCase().trim(), await hashPassword(password)]);
-  await db.execute('INSERT INTO profiles (user_id, full_name) VALUES (?,?)', [id, fullName]);
+  await User.create({ id, email: normalized, password_hash: await hashPassword(password) });
+  await Profile.create({ user_id: id, full_name: fullName });
   await logActivity({ userId: id, action: 'signup' });
 
-  const user = { id, email: email.toLowerCase().trim() };
+  const user = { id, email: normalized };
   res.status(201).json({ token: signUserToken(user), user });
 });
 
@@ -30,26 +30,22 @@ router.post('/login', async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
-  const [rows] = await db.execute('SELECT * FROM users WHERE email = ?', [String(email).toLowerCase().trim()]);
-  const user = rows[0];
+  const user = await User.findOne({ where: { email: String(email).toLowerCase().trim() } });
   if (!user || !(await verifyPassword(password, user.password_hash)))
     return res.status(401).json({ error: 'Wrong email or password' });
   if (user.status === 'suspended')
     return res.status(403).json({ error: 'This account has been suspended. Contact support.' });
 
-  await db.execute('UPDATE users SET last_login_at = NOW() WHERE id = ?', [user.id]);
-  await logActivity({ userId: user.id, action: 'login' });
+  await user.update({ last_login_at: new Date() });
   res.json({ token: signUserToken(user), user: { id: user.id, email: user.email } });
 });
 
 router.get('/me', requireUser, async (req, res) => {
-  const [rows] = await db.execute('SELECT id, email FROM users WHERE id = ?', [req.userId]);
-  if (!rows.length) return res.status(401).json({ error: 'Account no longer exists' });
-  res.json({ user: rows[0] });
+  const user = await User.findByPk(req.userId, { attributes: ['id', 'email'] });
+  if (!user) return res.status(401).json({ error: 'Account no longer exists' });
+  res.json({ user: user.get({ plain: true }) });
 });
 
-// Change password. Requires the current password, so a stolen session alone
-// cannot lock the real owner out of their account.
 router.put('/password', requireUser, async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   if (!currentPassword || !newPassword)
@@ -57,58 +53,45 @@ router.put('/password', requireUser, async (req, res) => {
   if (newPassword.length < 8)
     return res.status(400).json({ error: 'New password must be at least 8 characters' });
 
-  const [rows] = await db.execute('SELECT password_hash FROM users WHERE id = ?', [req.userId]);
-  if (!rows.length) return res.status(401).json({ error: 'Account no longer exists' });
+  const user = await User.findByPk(req.userId, { attributes: ['password_hash'] });
+  if (!user) return res.status(401).json({ error: 'Account no longer exists' });
 
-  if (!(await verifyPassword(currentPassword, rows[0].password_hash)))
+  if (!(await verifyPassword(currentPassword, user.password_hash)))
     return res.status(400).json({ error: 'Your current password is not correct' });
 
-  await db.execute('UPDATE users SET password_hash = ? WHERE id = ?',
-    [await hashPassword(newPassword), req.userId]);
+  await user.update({ password_hash: await hashPassword(newPassword) });
   await logActivity({ userId: req.userId, action: 'password_change' });
   res.json({ ok: true });
 });
 
-// Delete account. Requires the password so it can't be triggered accidentally
-// or by someone else on a shared machine. Cascades remove all related rows.
 router.delete('/account', requireUser, async (req, res) => {
   const { password } = req.body || {};
   if (!password) return res.status(400).json({ error: 'Enter your password to confirm deletion' });
 
-  const [rows] = await db.execute('SELECT password_hash FROM users WHERE id = ?', [req.userId]);
-  if (!rows.length) return res.status(401).json({ error: 'Account no longer exists' });
-  if (!(await verifyPassword(password, rows[0].password_hash)))
+  const user = await User.findByPk(req.userId, { attributes: ['password_hash'] });
+  if (!user) return res.status(401).json({ error: 'Account no longer exists' });
+  if (!(await verifyPassword(password, user.password_hash)))
     return res.status(400).json({ error: 'That password is not correct' });
 
   await logActivity({ userId: req.userId, action: 'account_delete' });
-  await db.execute('DELETE FROM users WHERE id = ?', [req.userId]);
+  await user.destroy();
   res.json({ ok: true });
 });
 
-// Anonymous, device-based identity. The app sends a stable deviceId it
-// generated and stored locally; we find-or-create a user row for it and hand
-// back a token. No email, no password, no login screen — but every piece of
-// data the app saves still attaches to a real users row, so all the existing
-// tables and foreign keys work unchanged.
 router.post('/device', async (req, res) => {
   const { deviceId } = req.body || {};
   if (!deviceId || String(deviceId).length < 8)
     return res.status(400).json({ error: 'A valid deviceId is required' });
 
   const email = `device_${String(deviceId).toLowerCase()}@device.wattwatch`;
-  const [existing] = await db.execute('SELECT id, email FROM users WHERE email = ?', [email]);
+  let user = await User.findOne({ where: { email }, attributes: ['id', 'email'] });
 
-  let user;
-  if (existing.length) {
-    user = existing[0];
-    await db.execute('UPDATE users SET last_login_at = NOW() WHERE id = ?', [user.id]);
+  if (user) {
+    await user.update({ last_login_at: new Date() });
   } else {
     const id = randomUUID();
-    // password_hash is NOT NULL; store a random unusable value since this
-    // account is never logged into with a password.
-    await db.execute('INSERT INTO users (id, email, password_hash) VALUES (?,?,?)',
-      [id, email, await hashPassword(randomUUID())]);
-    await db.execute('INSERT INTO profiles (user_id, full_name) VALUES (?,?)', [id, null]);
+    await User.create({ id, email, password_hash: await hashPassword(randomUUID()) });
+    await Profile.create({ user_id: id, full_name: null });
     await logActivity({ userId: id, action: 'device_register' });
     user = { id, email };
   }

@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
-import { pingDb } from './db.js';
+import { initDatabase, pingDb } from './db.js';
 import authRoutes from './routes/authRoutes.js';
 import adminAuthRoutes from './routes/adminAuth.js';
 import onboardingRoutes from './routes/onboarding.js';
@@ -13,12 +13,6 @@ import usageRoutes from './routes/usage.js';
 import priceRoutes from './routes/prices.js';
 import adminRoutes from './routes/admin.js';
 
-// Belt-and-braces on top of safeRouter.js: if anything anywhere still
-// produces an unhandled rejection (outside a route handler, e.g. a stray
-// fire-and-forget promise), log it instead of letting Node's default
-// behaviour silently kill the whole process. safeRouter.js should make this
-// unreachable for route handlers, but this is what stands between "one bug"
-// and "every feature in the API going down" if something new slips through.
 process.on('unhandledRejection', (reason) => {
   console.error('UNHANDLED REJECTION (server stayed up):', reason);
 });
@@ -36,7 +30,6 @@ app.get('/health', async (req, res) => {
   res.json({ api: 'ok', db: dbOk ? 'connected' : 'unreachable', version: '0.3.0' });
 });
 
-// app-user endpoints
 app.use('/auth', authRoutes);
 app.use('/onboarding', onboardingRoutes);
 app.use('/profile', profileRoutes);
@@ -46,7 +39,6 @@ app.use('/exports', exportRoutes);
 app.use('/usage', usageRoutes);
 app.use('/prices', priceRoutes);
 
-// admin/portal endpoints
 app.use('/admin/auth', adminAuthRoutes);
 app.use('/admin', adminRoutes);
 
@@ -55,6 +47,7 @@ app.use((err, req, res, next) => { console.error(err); res.status(500).json({ er
 
 const PORT = Number(process.env.PORT || 4000);
 if (process.env.NODE_ENV !== 'test') {
+  await initDatabase();
   app.listen(PORT, () => console.log(`WattWatch API v0.3 on http://localhost:${PORT}`));
 }
 export default app;

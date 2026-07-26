@@ -1,12 +1,11 @@
-// Creates a WattWatch app user directly in the database. Used when the app
-// has no signup flow — you seed known-good login credentials from here.
-//
-// Usage: npm run add-user
 import { randomUUID } from 'crypto';
 import readline from 'readline/promises';
 import { stdin, stdout } from 'process';
-import { db } from './db.js';
+import { initDatabase } from './db.js';
+import { User, Profile } from './models/index.js';
 import { hashPassword } from './auth.js';
+
+await initDatabase();
 
 const rl = readline.createInterface({ input: stdin, output: stdout });
 const email = (await rl.question('User email: ')).trim().toLowerCase();
@@ -19,17 +18,15 @@ if (!email || !pass || pass.length < 8) {
   process.exit(1);
 }
 
-const [dupe] = await db.execute('SELECT id FROM users WHERE email = ?', [email]);
-if (dupe.length) {
+const dupe = await User.findOne({ where: { email } });
+if (dupe) {
   console.log('That email already exists. Nothing changed.');
   process.exit(0);
 }
 
 const id = randomUUID();
-await db.execute('INSERT INTO users (id, email, password_hash) VALUES (?,?,?)',
-  [id, email, await hashPassword(pass)]);
-await db.execute('INSERT INTO profiles (user_id, full_name) VALUES (?,?)',
-  [id, fullName || null]);
+await User.create({ id, email, password_hash: await hashPassword(pass) });
+await Profile.create({ user_id: id, full_name: fullName || null });
 
 console.log(`\nUser created:  ${email}\nSign into the app with this email and password.`);
 process.exit(0);

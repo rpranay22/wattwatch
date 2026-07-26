@@ -1,9 +1,7 @@
-import { db } from './db.js';
+import { ActivityLog } from './models/index.js';
+
 export async function logActivity({ userId = null, adminId = null, action, detail = null }) {
   try {
-    await db.execute(
-      'INSERT INTO activity_log (user_id, admin_id, action, detail) VALUES (?,?,?,?)',
-      [userId, adminId, action, detail ? JSON.stringify(detail) : null]
-    );
+    await ActivityLog.create({ user_id: userId, admin_id: adminId, action, detail });
   } catch (e) { console.error('activity log failed:', e.message); }
 }
