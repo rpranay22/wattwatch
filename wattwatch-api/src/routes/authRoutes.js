@@ -2,7 +2,7 @@
 import { randomUUID } from 'crypto';
 import { logActivity } from '../activity.js';
 import { hashPassword, requireUser, signUserToken, verifyPassword } from '../auth.js';
-import { User, Profile } from '../models/index.js';
+import { Profile, User } from '../models/index.js';
 import { safeRouter } from '../safeRouter.js';
 
 const router = safeRouter();
@@ -31,6 +31,7 @@ router.post('/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
   const user = await User.findOne({ where: { email: String(email).toLowerCase().trim() } });
+  console.log("login attempt for user:", user ? user.email : "not found", user.password_hash);
   if (!user || !(await verifyPassword(password, user.password_hash)))
     return res.status(401).json({ error: 'Wrong email or password' });
   if (user.status === 'suspended')
