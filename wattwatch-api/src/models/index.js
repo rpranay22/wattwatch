@@ -16,6 +16,7 @@ export const sequelize = new Sequelize(
   }
 );
 
+// User model - using INTEGER for id (auto-increment)
 export const User = sequelize.define('User', {
   id: {
     type: DataTypes.INTEGER,
@@ -29,6 +30,7 @@ export const User = sequelize.define('User', {
   last_login_at: { type: DataTypes.DATE, allowNull: true },
 }, { tableName: 'users' });
 
+// AdminUser model - using UUID/CHAR(36) for id (for external system compatibility)
 export const AdminUser = sequelize.define('AdminUser', {
   id: { type: DataTypes.CHAR(36), primaryKey: true },
   email: { type: DataTypes.STRING(255), allowNull: false, unique: true },
@@ -40,8 +42,9 @@ export const AdminUser = sequelize.define('AdminUser', {
   last_login_at: { type: DataTypes.DATE, allowNull: true },
 }, { tableName: 'admin_users' });
 
+// Profile model - FIXED: user_id now matches User.id type (INTEGER)
 export const Profile = sequelize.define('Profile', {
-  user_id: { type: DataTypes.CHAR(36), primaryKey: true },
+  user_id: { type: DataTypes.INTEGER, primaryKey: true },
   full_name: { type: DataTypes.STRING(120), allowNull: true },
   phone: { type: DataTypes.STRING(40), allowNull: true },
   mprn: { type: DataTypes.STRING(20), allowNull: true },
@@ -52,17 +55,19 @@ export const Profile = sequelize.define('Profile', {
   updated_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
 }, { tableName: 'profiles' });
 
+// Onboarding model - FIXED: user_id now matches User.id type (INTEGER)
 export const Onboarding = sequelize.define('Onboarding', {
-  user_id: { type: DataTypes.CHAR(36), primaryKey: true },
+  user_id: { type: DataTypes.INTEGER, primaryKey: true },
   devices: { type: DataTypes.JSON, allowNull: true },
   household_size: { type: DataTypes.STRING(8), allowNull: true },
   supplier: { type: DataTypes.STRING(80), allowNull: true },
   completed_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
 }, { tableName: 'onboarding' });
 
+// Alert model - FIXED: user_id now matches User.id type (INTEGER)
 export const Alert = sequelize.define('Alert', {
   id: { type: DataTypes.CHAR(36), primaryKey: true },
-  user_id: { type: DataTypes.CHAR(36), allowNull: false },
+  user_id: { type: DataTypes.INTEGER, allowNull: false },
   name: { type: DataTypes.STRING(120), allowNull: false },
   kind: { type: DataTypes.ENUM('price', 'time'), allowNull: false },
   condition_t: { type: DataTypes.ENUM('below', 'above'), allowNull: true },
@@ -74,9 +79,10 @@ export const Alert = sequelize.define('Alert', {
   created_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
 }, { tableName: 'alerts' });
 
+// Ticket model - FIXED: user_id now matches User.id type (INTEGER), replied_by matches AdminUser.id (CHAR(36))
 export const Ticket = sequelize.define('Ticket', {
   id: { type: DataTypes.CHAR(36), primaryKey: true },
-  user_id: { type: DataTypes.CHAR(36), allowNull: false },
+  user_id: { type: DataTypes.INTEGER, allowNull: false },
   category: { type: DataTypes.STRING(40), allowNull: true },
   subject: { type: DataTypes.STRING(200), allowNull: false },
   body: { type: DataTypes.TEXT, allowNull: false },
@@ -88,17 +94,19 @@ export const Ticket = sequelize.define('Ticket', {
   updated_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
 }, { tableName: 'tickets' });
 
+// Export model - FIXED: user_id now matches User.id type (INTEGER)
 export const Export = sequelize.define('Export', {
   id: { type: DataTypes.CHAR(36), primaryKey: true },
-  user_id: { type: DataTypes.CHAR(36), allowNull: false },
+  user_id: { type: DataTypes.INTEGER, allowNull: false },
   format: { type: DataTypes.ENUM('pdf', 'csv', 'json'), allowNull: false },
   period: { type: DataTypes.STRING(20), allowNull: true },
   status: { type: DataTypes.ENUM('queued', 'ready', 'failed'), allowNull: false, defaultValue: 'queued' },
   created_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
 }, { tableName: 'exports' });
 
+// UsageDaily model - FIXED: user_id now matches User.id type (INTEGER)
 export const UsageDaily = sequelize.define('UsageDaily', {
-  user_id: { type: DataTypes.CHAR(36), primaryKey: true },
+  user_id: { type: DataTypes.INTEGER, primaryKey: true },
   day: { type: DataTypes.DATEONLY, primaryKey: true },
   kwh: { type: DataTypes.DECIMAL(7, 2), allowNull: false },
   cost: { type: DataTypes.DECIMAL(7, 2), allowNull: false },
@@ -108,9 +116,10 @@ export const UsageDaily = sequelize.define('UsageDaily', {
   best_window: { type: DataTypes.STRING(20), allowNull: false },
 }, { tableName: 'usage_daily' });
 
+// ActivityLog model - FIXED: user_id matches User.id (INTEGER), admin_id matches AdminUser.id (CHAR(36))
 export const ActivityLog = sequelize.define('ActivityLog', {
   id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
-  user_id: { type: DataTypes.CHAR(36), allowNull: true },
+  user_id: { type: DataTypes.INTEGER, allowNull: true },
   admin_id: { type: DataTypes.CHAR(36), allowNull: true },
   action: { type: DataTypes.STRING(60), allowNull: false },
   detail: { type: DataTypes.JSON, allowNull: true },
