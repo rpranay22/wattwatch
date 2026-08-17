@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { api, AuthUser, clearToken, getToken, setToken } from '../lib/api';
+import { initMobilePush, teardownMobilePush, isNativeApp } from '../lib/push';
 
 interface AuthState {
   ready: boolean;
@@ -24,6 +25,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
+  // Register FCM device token after sign-in (APK).
+  useEffect(() => {
+    if (!user || !isNativeApp()) return;
+    initMobilePush().catch(() => {});
+  }, [user]);
+
   const value = useMemo<AuthState>(() => ({
     ready, user,
     signIn: async (email, password) => {
@@ -34,7 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { token, user } = await api.signup(email, password, fullName);
       setToken(token); setUser(user);
     },
-    signOut: () => { clearToken(); setUser(null); },
+    signOut: () => {
+      teardownMobilePush().catch(() => {});
+      clearToken(); setUser(null);
+    },
   }), [ready, user]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

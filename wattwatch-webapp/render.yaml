@@ -8,3 +8,17 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://wattwatch-dt63.onrender.com
+      - key: VITE_FIREBASE_API_KEY
+        value: AIzaSyAboese5bqUFc6iFMwzrzRDdPETyj5Cni8
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        value: wattwatch-505811.firebaseapp.com
+      - key: VITE_FIREBASE_PROJECT_ID
+        value: wattwatch-505811
+      - key: VITE_FIREBASE_STORAGE_BUCKET
+        value: wattwatch-505811.firebasestorage.app
+      - key: VITE_FIREBASE_MESSAGING_SENDER_ID
+        value: "417090114795"
+      - key: VITE_FIREBASE_APP_ID
+        value: 1:417090114795:web:73cfcae7081ee590f4daae
+      - key: VITE_FIREBASE_MEASUREMENT_ID
+        value: G-CM3W6BNRX7

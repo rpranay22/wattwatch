@@ -193,3 +193,16 @@ ActivityLog.belongsTo(AdminUser, { foreignKey: 'admin_id', as: 'admin' });
 
 CrmTicket.belongsTo(CrmCustomer, { foreignKey: 'customerId' });
 CrmCustomer.hasMany(CrmTicket, { foreignKey: 'customerId' });
+
+export const PushToken = sequelize.define('PushToken', {
+  id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
+  user_id: { type: DataTypes.INTEGER, allowNull: false },
+  token: { type: DataTypes.STRING(512), allowNull: false, unique: true },
+  platform: { type: DataTypes.ENUM('android', 'ios', 'web'), allowNull: false, defaultValue: 'android' },
+  cheap_window: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  created_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+  updated_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+}, { tableName: 'push_tokens' });
+
+User.hasMany(PushToken, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+PushToken.belongsTo(User, { foreignKey: 'user_id' });

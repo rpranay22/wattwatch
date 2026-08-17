@@ -1,16 +1,39 @@
 import { useTheme } from '../../state/ThemeContext';
-import { notificationSupport, requestPermission, notify, PermissionState } from '../../lib/notifications';
+import {
+  notificationSupport, requestPermission, notify, PermissionState,
+  isCheapWindowNotifyEnabled, setCheapWindowNotifyEnabled, pushMode, isNativeApp,
+} from '../../lib/notifications';
 import { useEffect, useState } from 'react';
 
 export function ThemeSettings() {
   const { mode, toggle } = useTheme();
   const [perm, setPerm] = useState<PermissionState>('default');
-  useEffect(() => { setPerm(notificationSupport()); }, []);
+  const [cheapNotify, setCheapNotify] = useState(true);
+  const native = isNativeApp();
+
+  useEffect(() => {
+    setPerm(notificationSupport());
+    setCheapNotify(isCheapWindowNotifyEnabled());
+  }, []);
 
   const enable = async () => {
     const p = await requestPermission();
     setPerm(p);
-    if (p === 'granted') notify('Notifications are on', "We'll let you know when your alerts trigger.");
+    if (p === 'granted') {
+      if (native) {
+        notify('Push notifications on', 'We will notify you on this phone when electricity enters a cheap window.');
+      } else {
+        notify(
+          'Notifications are on',
+          "We'll notify you when electricity enters a cheap window while WattWatch is open.",
+        );
+      }
+    }
+  };
+
+  const toggleCheap = async (on: boolean) => {
+    setCheapNotify(on);
+    await setCheapWindowNotifyEnabled(on);
   };
 
   return (
@@ -42,21 +65,50 @@ export function ThemeSettings() {
 
       <div className="card" style={{ maxWidth: 720 }}>
         <h3 style={{ marginBottom: 12 }}>Notifications</h3>
-        {perm === 'unsupported' ? <p className="muted">Your browser does not support notifications.</p>
+        <p className="muted" style={{ marginBottom: 14, lineHeight: 1.5 }}>
+          {native
+            ? 'Mobile app mode — push alerts are sent from the server via Firebase, even when WattWatch is closed.'
+            : 'Web mode — browser alerts work while this tab is open. Build the APK for background phone notifications.'}
+          {' '}(Mode: {pushMode()})
+        </p>
+
+        {perm === 'unsupported' && !native ? <p className="muted">Your browser does not support notifications.</p>
         : perm === 'granted' ? (
           <>
             <div className="list-row">
-              <div><strong>Browser notifications</strong><div className="muted">On — your alerts will notify you</div></div>
-              <span className="pill cheap">Enabled</span>
+              <div>
+                <strong>Cheap window alerts</strong>
+                <div className="muted">When price drops under €0.20/kWh (ENTSO-E live data)</div>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={cheapNotify} onChange={(e) => toggleCheap(e.target.checked)} />
+                <span>{cheapNotify ? 'On' : 'Off'}</span>
+              </label>
             </div>
-            <button className="btn ghost" style={{ marginTop: 12 }}
-              onClick={() => notify('Test notification', 'This is what an alert looks like.')}>Send a test</button>
+            {!native && (
+              <div className="list-row">
+                <div><strong>Custom alerts</strong><div className="muted">While tab is open</div></div>
+                <span className="pill cheap">Enabled</span>
+              </div>
+            )}
+            {!native && (
+              <button className="btn ghost" style={{ marginTop: 12 }}
+                onClick={() => notify('Test notification', 'This is what a cheap-window alert looks like.', 'wattwatch-test')}>
+                Send a test
+              </button>
+            )}
           </>
         ) : perm === 'denied' ? (
-          <p className="muted">Notifications are blocked. Enable them in your browser's settings for this site, then reload.</p>
+          <p className="muted">
+            Notifications are blocked. {native ? 'Enable them in Android Settings → Apps → WattWatch → Notifications.' : 'Enable them in your browser settings for this site, then reload.'}
+          </p>
         ) : (
           <>
-            <p className="muted" style={{ marginBottom: 12 }}>Turn on notifications so your alerts can reach you while WattWatch is open.</p>
+            <p className="muted" style={{ marginBottom: 12 }}>
+              {native
+                ? 'Allow notifications so we can alert you on your phone when electricity is cheap — no need to keep the app open.'
+                : 'Turn on notifications for cheap-window alerts while WattWatch is open in your browser.'}
+            </p>
             <button className="btn" onClick={enable}>Enable notifications</button>
           </>
         )}

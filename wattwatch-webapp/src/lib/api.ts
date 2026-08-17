@@ -99,4 +99,13 @@ export const api = {
   listTickets: () => request('/tickets'),
   createTicket: (subject: string, body: string, category?: string) =>
     request('/tickets', { method: 'POST', body: JSON.stringify({ subject, body, category }) }),
+
+  registerPushToken: (token: string, platform: 'android' | 'ios' | 'web', cheapWindow = true) =>
+    request('/push/register', { method: 'POST', body: JSON.stringify({ token, platform, cheapWindow }) }),
+  unregisterPushToken: (token: string) =>
+    request('/push/register', { method: 'DELETE', body: JSON.stringify({ token }) }),
+  updatePushPreferences: (cheapWindow: boolean) =>
+    request('/push/preferences', { method: 'PUT', body: JSON.stringify({ cheapWindow }) }),
+  getPushStatus: (): Promise<{ registered: boolean; devices: number; cheapWindowEnabled: boolean }> =>
+    request('/push/status'),
 };

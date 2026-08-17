@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { api, Alert } from '../lib/api';
 import { setLivePrices, priceAt, slotFor } from '../lib/pricing';
-import { checkAlerts } from '../lib/notifications';
+import { checkAlerts, checkCheapWindow, resetCheapWindowState } from '../lib/notifications';
 import { useAuth } from './AuthContext';
 
 interface AppDataState {
@@ -22,7 +22,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      resetCheapWindowState();
+      return;
+    }
     (async () => {
       try {
         const prices = await api.getPrices();
@@ -32,15 +35,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     })();
   }, [user, refreshAlerts]);
 
-  // While the app is open, check the user's alerts against the current price
-  // every minute and fire a browser notification when one matches. This is
-  // what makes alerts actually reach the user rather than just being stored.
+  // Check price every minute: custom alerts + automatic cheap-window push.
   useEffect(() => {
-    if (!user || alerts.length === 0) return;
+    if (!user) return;
     const tick = () => {
-      try { checkAlerts(alerts, priceAt(slotFor())); } catch {}
+      try {
+        const price = priceAt(slotFor());
+        checkCheapWindow(price);
+        if (alerts.length > 0) checkAlerts(alerts, price);
+      } catch {}
     };
-    tick(); // check immediately on load too
+    tick();
     const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
   }, [user, alerts]);

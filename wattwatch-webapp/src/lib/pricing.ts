@@ -142,6 +142,88 @@ export function recommendationFor(slot: number): string {
     : 'Peak rate. Delay heavy appliances if you can.';
 }
 
+export type UsageVerdict = 'good' | 'ok' | 'wait';
+
+export interface UsageAdvice {
+  verdict: UsageVerdict;
+  verdictLabel: string;
+  tier: Tier;
+  price: number;
+  headline: string;
+  action: string;
+  basis: string;
+  comparedToAvg: 'below' | 'near' | 'above';
+  dayAvg: number;
+  nextChange: { slot: number; tier: Tier; label: string } | null;
+}
+
+/**
+ * Should the customer use electricity right now?
+ *
+ * Basis (same thresholds as alerts and the Explainer page):
+ *   - GOOD  (< €0.20/kWh): cheap tier — bottom of today's curve; run washers, EV, etc.
+ *   - OK    (€0.20–€0.28): moderate — fine for lights/TV; delay heavy loads if flexible
+ *   - WAIT  (≥ €0.28/kWh): expensive — peak slot; wait for a cheaper window if you can
+ *
+ * We also compare to today's average so the message reflects where this slot sits
+ * relative to the full ENTSO-E day-ahead curve.
+ */
+export function usageAdvice(slot: number): UsageAdvice {
+  const price = priceAt(slot);
+  const tier = tierFor(price);
+  const { avg } = dayStats();
+  const change = nextTierChange(slot);
+
+  const verdict: UsageVerdict = tier === 'cheap' ? 'good' : tier === 'moderate' ? 'ok' : 'wait';
+  const verdictLabel = {
+    good: 'Good time to use',
+    ok: 'OK to use',
+    wait: 'Wait if you can',
+  }[verdict];
+
+  const comparedToAvg: UsageAdvice['comparedToAvg'] =
+    price < avg * 0.98 ? 'below' : price > avg * 1.02 ? 'above' : 'near';
+
+  const avgPhrase =
+    comparedToAvg === 'below'
+      ? `${formatPrice(Math.abs(price - avg))} below today's average`
+      : comparedToAvg === 'above'
+        ? `${formatPrice(Math.abs(price - avg))} above today's average`
+        : `in line with today's average of ${formatPrice(avg)}`;
+
+  let basis: string;
+  if (tier === 'cheap') {
+    basis = `Under €${CHEAP_MAX.toFixed(2)}/kWh (cheap tier) and ${avgPhrase}.`;
+  } else if (tier === 'moderate') {
+    basis = `Between €${CHEAP_MAX.toFixed(2)} and €${MODERATE_MAX.toFixed(2)}/kWh — ${avgPhrase}.`;
+  } else {
+    basis = `Above €${MODERATE_MAX.toFixed(2)}/kWh (peak tier) and ${avgPhrase}.`;
+  }
+
+  const headline = {
+    good: 'Yes — good time to use electricity',
+    ok: 'OK for normal use; delay heavy loads if you can',
+    wait: 'Not ideal — wait if you can',
+  }[verdict];
+
+  return {
+    verdict,
+    verdictLabel,
+    tier,
+    price,
+    headline,
+    action: recommendationFor(slot),
+    basis,
+    comparedToAvg,
+    dayAvg: avg,
+    nextChange: change ? { ...change, label: slotLabel(change.slot) } : null,
+  };
+}
+
+export function isLiveEntsoSource(source: string): boolean {
+  return source.includes('ENTSO-E day-ahead (live)');
+}
+
 /** Aggregate the 48 half-hourly values into 24 hourly averages, for the line chart. */
 export function hourlyAverages(): number[] {
   const arr = LIVE_PRICES ?? HALF_HOURLY_PRICES;

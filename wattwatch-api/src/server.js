@@ -11,7 +11,9 @@ import alertRoutes from './routes/alerts.js';
 import exportRoutes from './routes/exports.js';
 import usageRoutes from './routes/usage.js';
 import priceRoutes from './routes/prices.js';
+import pushRoutes from './routes/push.js';
 import adminRoutes from './routes/admin.js';
+import { startCheapWindowWatcher } from './cheapWindowWatcher.js';
 
 process.on('unhandledRejection', (reason) => {
   console.error('UNHANDLED REJECTION (server stayed up):', reason);
@@ -38,6 +40,7 @@ app.use('/alerts', alertRoutes);
 app.use('/exports', exportRoutes);
 app.use('/usage', usageRoutes);
 app.use('/prices', priceRoutes);
+app.use('/push', pushRoutes);
 
 app.use('/admin/auth', adminAuthRoutes);
 app.use('/admin', adminRoutes);
@@ -48,6 +51,7 @@ app.use((err, req, res, next) => { console.error(err); res.status(500).json({ er
 const PORT = Number(process.env.PORT || 4000);
 if (process.env.NODE_ENV !== 'test') {
   await initDatabase();
+  startCheapWindowWatcher();
   app.listen(PORT, () => console.log(`WattWatch API v0.3 on http://localhost:${PORT}`));
 }
 export default app;
