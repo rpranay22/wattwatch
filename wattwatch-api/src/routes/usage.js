@@ -1,9 +1,13 @@
 // Powers the Calendar screen. GET /usage?month=YYYY-MM
 import { safeRouter } from '../safeRouter.js';
 import { requireUser } from '../auth.js';
-import { getMonthUsage } from '../usage.js';
+import { getMonthUsage, getSavingsSummary } from '../usage.js';
 const router = safeRouter();
 router.use(requireUser);
+
+router.get('/savings', async (req, res) => {
+  res.json(await getSavingsSummary(req.userId));
+});
 
 router.get('/', async (req, res) => {
   const m = String(req.query.month || '');

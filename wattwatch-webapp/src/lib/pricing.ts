@@ -86,6 +86,10 @@ export function formatPrice(price: number, decimals = 3): string {
   return `\u20ac${price.toFixed(decimals)}`;
 }
 
+export function formatEuro(amount: number): string {
+  return `\u20ac${amount.toFixed(2)}`;
+}
+
 /** The next `count` slots starting at `from`, wrapping past midnight. */
 export function upcomingSlots(from: number, count: number): { slot: number; price: number }[] {
   return Array.from({ length: count }, (_, i) => {

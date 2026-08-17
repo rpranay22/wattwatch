@@ -1,8 +1,34 @@
+import { useEffect, useState } from 'react';
 import {
-  slotFor, slotLabel, tierLabel, formatPrice,
+  slotFor, slotLabel, tierLabel, formatPrice, formatEuro,
   cheapestWindow, dayStats, usageAdvice, isLiveEntsoSource,
 } from '../lib/pricing';
 import { useAppData } from '../state/AppData';
+import { api, SavingsPeriod } from '../lib/api';
+
+function SavingsCard({ label, period }: { label: string; period: SavingsPeriod | null }) {
+  if (!period) {
+    return (
+      <div className="card kpi savings-card">
+        <div className="label">{label}</div>
+        <div className="value muted">—</div>
+        <div className="sub">Loading…</div>
+      </div>
+    );
+  }
+  return (
+    <div className="card kpi savings-card">
+      <div className="label">{label}</div>
+      <div className="value savings-amt">{formatEuro(period.saved)}</div>
+      <div className="sub">
+        {period.pct > 0 ? `${period.pct}% vs peak rate` : 'Shift loads to cheap windows to save'}
+      </div>
+      <div className="savings-detail muted">
+        Paid {formatEuro(period.actualCost)} · would be {formatEuro(period.baselineCost)} at peak
+      </div>
+    </div>
+  );
+}
 
 export function Dashboard() {
   const { priceSource } = useAppData();
@@ -11,6 +37,17 @@ export function Dashboard() {
   const { min, max, avg } = dayStats();
   const win = cheapestWindow(now, 6);
   const live = isLiveEntsoSource(priceSource);
+
+  const [savings, setSavings] = useState<{
+    today: SavingsPeriod;
+    week: SavingsPeriod;
+    month: SavingsPeriod;
+    basis: string;
+  } | null>(null);
+
+  useEffect(() => {
+    api.getSavings().then(setSavings).catch(() => {});
+  }, []);
 
   const ringColor = advice.tier === 'cheap' ? 'var(--cheap)' : advice.tier === 'moderate' ? 'var(--moderate)' : 'var(--expensive)';
   const tint = advice.tier === 'cheap' ? 'var(--cheap-tint)' : advice.tier === 'moderate' ? 'var(--moderate-tint)' : 'var(--expensive-tint)';
@@ -65,6 +102,14 @@ export function Dashboard() {
         </div>
       </div>
 
+      <h2 className="section-title">Your savings with WattWatch</h2>
+      <p className="section-sub muted">By using cheaper windows instead of peak-rate times.</p>
+      <div className="grid grid-3" style={{ marginBottom: 16 }}>
+        <SavingsCard label="Today" period={savings?.today ?? null} />
+        <SavingsCard label="This week" period={savings?.week ?? null} />
+        <SavingsCard label="This month" period={savings?.month ?? null} />
+      </div>
+
       <div className="grid grid-3">
         <div className="card kpi">
           <div className="label">Today's average</div>
@@ -84,16 +129,11 @@ export function Dashboard() {
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
-        <h3 style={{ margin: '0 0 8px', fontSize: 15 }}>How we decide</h3>
+        <h3 style={{ margin: '0 0 8px', fontSize: 15 }}>How savings are calculated</h3>
         <p className="muted" style={{ margin: 0, lineHeight: 1.55 }}>
-          Prices come from {live ? 'ENTSO-E day-ahead auction data for Ireland (SEM)' : 'a realistic estimate curve'}.
-          We split each day into 48 half-hour slots and label each as{' '}
-          <span className="pill cheap" style={{ fontSize: 11 }}>CHEAP</span>{' '}
-          under €0.20/kWh,{' '}
-          <span className="pill moderate" style={{ fontSize: 11 }}>MODERATE</span>{' '}
-          €0.20–€0.28, or{' '}
-          <span className="pill expensive" style={{ fontSize: 11 }}>EXPENSIVE</span>{' '}
-          above €0.28 — then compare your current slot to today's average.
+          {savings?.basis ?? 'We compare what you actually paid to what the same usage would cost at the day\'s peak rate.'}
+          {' '}Each day we use your kWh from the calendar, your real cost, and that day's peak price from ENTSO-E.
+          The difference is money saved by timing dishwasher, EV, and heating toward cheap windows.
         </p>
       </div>
     </>

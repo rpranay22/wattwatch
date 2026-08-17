@@ -60,6 +60,13 @@ async function request(path: string, opts: RequestInit = {}) {
 }
 
 export interface AuthUser { id: string; email: string }
+export interface SavingsPeriod {
+  saved: number;
+  actualCost: number;
+  baselineCost: number;
+  kwh: number;
+  pct: number;
+}
 export interface Alert {
   id: string; name: string; kind: 'price' | 'time';
   condition?: 'below' | 'above'; threshold?: number;
@@ -88,6 +95,13 @@ export const api = {
   deleteAlert: (id: string) => request(`/alerts/${id}`, { method: 'DELETE' }),
 
   getUsage: (month: string) => request(`/usage?month=${month}`),
+
+  getSavings: (): Promise<{
+    today: SavingsPeriod;
+    week: SavingsPeriod;
+    month: SavingsPeriod;
+    basis: string;
+  }> => request('/usage/savings'),
 
   getProfile: () => request('/profile'),
   saveProfile: (p: any) => request('/profile', { method: 'PUT', body: JSON.stringify(p) }),

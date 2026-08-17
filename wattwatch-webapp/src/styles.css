@@ -127,6 +127,11 @@ input, select, textarea { font: inherit; }
 .usage-action { margin: 0 0 8px; font-size: 15px; color: var(--ink); }
 .usage-basis { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
 .usage-basis strong { color: var(--ink); }
+.section-title { margin: 0 0 4px; font-size: 18px; font-weight: 700; }
+.section-sub { margin: 0 0 12px; font-size: 13px; }
+.savings-card { border-top: 3px solid var(--cheap); }
+.savings-amt { color: var(--cheap) !important; font-size: 28px !important; }
+.savings-detail { font-size: 11px; margin-top: 6px; line-height: 1.4; }
 @media (max-width: 640px) {
   .price-hero { flex-direction: column; text-align: center; }
   .usage-copy { text-align: center; }

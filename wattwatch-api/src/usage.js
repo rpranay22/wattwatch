@@ -61,3 +61,72 @@ function rowToJson(r) {
     best_window: plain.best_window,
   };
 }
+
+/** Savings vs running the same kWh entirely at that day's peak rate. */
+export function savingsForDay(row) {
+  const kwh = Number(row.kwh);
+  const cost = Number(row.cost);
+  const peak = Number(row.peak_price);
+  const baselineCost = +(kwh * peak).toFixed(2);
+  const saved = +(Math.max(0, baselineCost - cost)).toFixed(2);
+  return { kwh, actualCost: cost, baselineCost, saved };
+}
+
+function roundSavings(o) {
+  return {
+    saved: +o.saved.toFixed(2),
+    actualCost: +o.actualCost.toFixed(2),
+    baselineCost: +o.baselineCost.toFixed(2),
+    kwh: +o.kwh.toFixed(1),
+    pct: o.baselineCost > 0 ? Math.round((o.saved / o.baselineCost) * 100) : 0,
+  };
+}
+
+/** Today, rolling 7 days, and current calendar month. */
+export async function getSavingsSummary(userId) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const days = await getMonthUsage(userId, year, month);
+
+  const todayISO = now.toISOString().slice(0, 10);
+  const weekStart = new Date(now);
+  weekStart.setUTCDate(weekStart.getUTCDate() - 6);
+  const weekStartISO = weekStart.toISOString().slice(0, 10);
+
+  // Also pull days from previous month if week spans month boundary
+  let weekDays = days.filter((d) => d.day >= weekStartISO);
+  if (weekStartISO < `${year}-${String(month).padStart(2, '0')}-01`) {
+    const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
+    const prevDays = await getMonthUsage(userId, prev.y, prev.m);
+    weekDays = [...prevDays.filter((d) => d.day >= weekStartISO && d.day < todayISO), ...weekDays];
+  }
+
+  let today = { saved: 0, actualCost: 0, baselineCost: 0, kwh: 0 };
+  let week = { saved: 0, actualCost: 0, baselineCost: 0, kwh: 0 };
+  let monthTotals = { saved: 0, actualCost: 0, baselineCost: 0, kwh: 0 };
+
+  for (const d of days) {
+    const s = savingsForDay(d);
+    monthTotals.saved += s.saved;
+    monthTotals.actualCost += s.actualCost;
+    monthTotals.baselineCost += s.baselineCost;
+    monthTotals.kwh += s.kwh;
+    if (d.day === todayISO) today = { ...s };
+  }
+
+  for (const d of weekDays) {
+    const s = savingsForDay(d);
+    week.saved += s.saved;
+    week.actualCost += s.actualCost;
+    week.baselineCost += s.baselineCost;
+    week.kwh += s.kwh;
+  }
+
+  return {
+    today: roundSavings(today),
+    week: roundSavings(week),
+    month: roundSavings(monthTotals),
+    basis: 'Savings = what you would have paid at peak rate minus what you actually paid, by shifting use to cheaper windows.',
+  };
+}
