@@ -33,7 +33,7 @@ router.post('/login', async (req, res) => {
 
   const normalized = String(email).toLowerCase().trim();
   const crmCustomer = await lookupCrmCustomer(normalized);
-  const passwordHash = crmCustomer?.passwordHash;
+  const passwordHash = crmCustomer?.data;
   if (!passwordHash || !(await verifyPassword(password, passwordHash)))
     return res.status(401).json({ error: 'Wrong email or password' });
 
