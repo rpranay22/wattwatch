@@ -1,0 +1,16 @@
+# Render deployment config. When you connect this repo, Render reads this and
+# sets the service up automatically. You still add the secret env vars
+# (DB_PASSWORD, JWT_SECRET) in the Render dashboard.
+services:
+  - type: web
+    name: wattwatch-api
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: DB_SSL
+        value: "true"
+      - key: DB_PORT
+        value: "3306"

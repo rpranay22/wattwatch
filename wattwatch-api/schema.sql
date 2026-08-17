@@ -1,0 +1,5 @@
+-- =====================================================================
+-- DEPRECATED: Tables are now auto-created by Sequelize on startup.
+-- See src/models/index.js for the canonical schema definition.
+-- You no longer need to run this file manually.
+-- =====================================================================
