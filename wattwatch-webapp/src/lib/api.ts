@@ -1,6 +1,6 @@
 // Web API client. Talks to the same WattWatch backend the mobile app used.
 // Token lives in localStorage (web equivalent of the app's secure store).
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:5000';
+const API = import.meta.env.VITE_API_URL ?? 'https://wattwatch-dt63.onrender.com';
 const TOKEN_KEY = 'ww_token';
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
