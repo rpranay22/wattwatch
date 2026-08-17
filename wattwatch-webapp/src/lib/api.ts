@@ -1,6 +1,27 @@
-// Web API client. Talks to the same WattWatch backend the mobile app used.
-// Token lives in localStorage (web equivalent of the app's secure store).
-const API = import.meta.env.VITE_API_URL ?? 'https://wattwatch-dt63.onrender.com';
+// WattWatch API base URL.
+// - Local dev (npm run dev): uses http://localhost:5000
+// - Production build / deployed site: uses Render — NEVER localhost
+const PRODUCTION_API = 'https://wattwatch-dt63.onrender.com';
+
+function resolveApiBase(): string {
+  const configured = import.meta.env.VITE_API_URL?.trim();
+  const isLocalSite =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  if (isLocalSite) {
+    return configured || 'http://localhost:5000';
+  }
+
+  // Deployed app: ignore any localhost URL that got baked into the build
+  if (configured && !/localhost|127\.0\.0\.1/i.test(configured)) {
+    return configured.replace(/\/$/, '');
+  }
+
+  return PRODUCTION_API;
+}
+
+const API = resolveApiBase();
 const TOKEN_KEY = 'ww_token';
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
@@ -11,10 +32,6 @@ export class ApiError extends Error { }
 
 async function request(path: string, opts: RequestInit = {}) {
   const token = getToken();
-  // Login and signup are the endpoints where a 401 means "wrong credentials",
-  // not "your session ended". Treating them the same was a real bug: a simple
-  // typo in your password showed a misleading "session expired" message and
-  // made it look like sign-in was broken.
   const isAuthAttempt = path === '/auth/login' || path === '/auth/signup';
 
   let res: Response;
@@ -23,7 +40,6 @@ async function request(path: string, opts: RequestInit = {}) {
       ...opts,
       headers: {
         'Content-Type': 'application/json',
-        // Never send a stale token on a fresh sign-in attempt.
         ...(token && !isAuthAttempt ? { Authorization: `Bearer ${token}` } : {}),
         ...opts.headers,
       },

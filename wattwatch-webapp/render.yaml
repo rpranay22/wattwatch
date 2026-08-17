@@ -1,0 +1,10 @@
+# Render static site for WattWatch web app
+services:
+  - type: web
+    name: wattwatch-web
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://wattwatch-dt63.onrender.com
