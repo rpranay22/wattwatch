@@ -2,7 +2,7 @@
 import { randomUUID } from 'crypto';
 import { logActivity } from '../activity.js';
 import { hashPassword, requireUser, signUserToken, verifyPassword } from '../auth.js';
-import { lookupCrmCustomer } from '../crmApiClient.js';
+import { lookupCrmCustomer, syncPasswordToCrm } from '../crmApiClient.js';
 import { Profile, User } from '../models/index.js';
 import { safeRouter } from '../safeRouter.js';
 
@@ -65,13 +65,28 @@ router.put('/password', requireUser, async (req, res) => {
   if (newPassword.length < 8)
     return res.status(400).json({ error: 'New password must be at least 8 characters' });
 
-  const user = await User.findByPk(req.userId, { attributes: ['id', 'password_hash'] });
+  const user = await User.findByPk(req.userId, { attributes: ['id', 'email', 'password_hash'] });
   if (!user) return res.status(401).json({ error: 'Account no longer exists' });
 
-  if (!(await verifyPassword(currentPassword, user.password_hash)))
+  const crmLookup = await lookupCrmCustomer(user.email);
+  const hashForVerify = crmLookup?.data ?? user.password_hash;
+
+  if (!(await verifyPassword(currentPassword, hashForVerify)))
     return res.status(400).json({ error: 'Your current password is not correct' });
 
-  await user.update({ password_hash: await hashPassword(newPassword) });
+  const newHash = await hashPassword(newPassword);
+
+  // Login checks CRM — update CRM first so old password stops working immediately.
+  if (crmLookup?.data) {
+    const synced = await syncPasswordToCrm(user.email, newHash);
+    if (!synced) {
+      return res.status(502).json({
+        error: 'Could not update your password in the account system. Please try again later.',
+      });
+    }
+  }
+
+  await user.update({ password_hash: newHash });
   await logActivity({ userId: req.userId, action: 'password_change' });
   res.json({ ok: true });
 });
