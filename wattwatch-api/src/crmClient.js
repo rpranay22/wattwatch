@@ -1,5 +1,5 @@
-import { CrmCustomer, CrmTicket, sequelize } from './models/index.js';
-import { buildCrmCustomerPayload, buildCrmTicketPayload } from './crmMapping.js';
+import { CrmCustomer, CrmTicket, Ticket, sequelize } from './models/index.js';
+import { buildCrmCustomerPayload, buildCrmTicketPayload, mapCrmStatusToWattWatch } from './crmMapping.js';
 
 async function crmTablesExist() {
   const tables = await sequelize.getQueryInterface().showAllTables();
@@ -31,7 +31,7 @@ async function ensureCrmCustomer(profile, email) {
   return customer.id;
 }
 
-export async function syncTicketToCrm({ email, profile, subject, body, category }) {
+export async function syncTicketToCrm({ email, profile, subject, body, category, wattwatchTicketId }) {
   try {
     const customerId = await ensureCrmCustomer(profile, email);
     if (!customerId) return null;
@@ -44,9 +44,53 @@ export async function syncTicketToCrm({ email, profile, subject, body, category 
       priority: t.priority,
       status: t.status,
     });
+
+    if (wattwatchTicketId) {
+      await Ticket.update(
+        { crm_id: String(ticket.id), updated_at: new Date() },
+        { where: { id: wattwatchTicketId } },
+      );
+    }
+
     return ticket.id;
   } catch (e) {
     console.warn('CRM ticket sync failed (ticket still saved in WattWatch):', e.message);
     return null;
+  }
+}
+
+/** Pull status (and link crm_id) from crm_tickets into WattWatch tickets for this user. */
+export async function syncTicketsFromCrm(userId, email) {
+  try {
+    if (!(await crmTablesExist())) return;
+
+    const customer = await CrmCustomer.findOne({ where: { email } });
+    if (!customer) return;
+
+    const [wwTickets, crmTickets] = await Promise.all([
+      Ticket.findAll({ where: { user_id: userId } }),
+      CrmTicket.findAll({ where: { customerId: customer.id } }),
+    ]);
+
+    const crmById = new Map(crmTickets.map((t) => [String(t.id), t]));
+
+    for (const ww of wwTickets) {
+      let crm = ww.crm_id ? crmById.get(String(ww.crm_id)) : null;
+      if (!crm) {
+        crm = crmTickets.find((t) => t.subject === ww.subject) ?? null;
+      }
+      if (!crm) continue;
+
+      const status = mapCrmStatusToWattWatch(crm.status);
+      const updates = {};
+      if (status !== ww.status) updates.status = status;
+      if (!ww.crm_id) updates.crm_id = String(crm.id);
+      if (Object.keys(updates).length) {
+        updates.updated_at = new Date();
+        await ww.update(updates);
+      }
+    }
+  } catch (e) {
+    console.warn('CRM ticket status sync failed:', e.message);
   }
 }

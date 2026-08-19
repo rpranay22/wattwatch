@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { splitName, buildCrmCustomerPayload, buildCrmTicketPayload, FALLBACK } from '../src/crmMapping.js';
+import { splitName, buildCrmCustomerPayload, buildCrmTicketPayload, mapCrmStatusToWattWatch, FALLBACK } from '../src/crmMapping.js';
 
 let n = 0; const ok = (m) => { n++; console.log('  ok  ' + m); };
 
@@ -58,5 +58,11 @@ ok('buildCrmTicketPayload: an invalid priority falls back instead of violating t
 t = buildCrmTicketPayload({ customerId: 5, subject: 'x'.repeat(300), body: 'y' });
 assert.strictEqual(t.subject.length, 180);
 ok('buildCrmTicketPayload: an over-long subject is truncated to fit STRING(180)');
+
+assert.strictEqual(mapCrmStatusToWattWatch('RESOLVED'), 'resolved');
+assert.strictEqual(mapCrmStatusToWattWatch('IN_PROGRESS'), 'in_progress');
+assert.strictEqual(mapCrmStatusToWattWatch('OPEN'), 'open');
+assert.strictEqual(mapCrmStatusToWattWatch('open'), 'open');
+ok('mapCrmStatusToWattWatch: CRM statuses map to WattWatch enum');
 
 console.log(`\n${n} checks passed.`);

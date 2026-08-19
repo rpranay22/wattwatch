@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">WattWatch</string>
+    <string name="title_activity_main">WattWatch</string>
+    <string name="package_name">ie.wattwatch.app</string>
+    <string name="custom_url_scheme">ie.wattwatch.app</string>
+</resources>

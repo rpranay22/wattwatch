@@ -3,18 +3,26 @@ import {
   notificationSupport, requestPermission, notify, PermissionState,
   isCheapWindowNotifyEnabled, setCheapWindowNotifyEnabled, pushMode, isNativeApp,
 } from '../../lib/notifications';
+import { getDevicePushToken, initMobilePush } from '../../lib/push';
 import { useEffect, useState } from 'react';
 
 export function ThemeSettings() {
   const { mode, toggle } = useTheme();
   const [perm, setPerm] = useState<PermissionState>('default');
   const [cheapNotify, setCheapNotify] = useState(true);
+  const [fcmToken, setFcmToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const native = isNativeApp();
 
   useEffect(() => {
     setPerm(notificationSupport());
     setCheapNotify(isCheapWindowNotifyEnabled());
-  }, []);
+    if (native) {
+      initMobilePush().then((p) => setPerm(p));
+      const id = window.setInterval(() => setFcmToken(getDevicePushToken()), 800);
+      return () => window.clearInterval(id);
+    }
+  }, [native]);
 
   const enable = async () => {
     const p = await requestPermission();
@@ -96,6 +104,28 @@ export function ThemeSettings() {
                 onClick={() => notify('Test notification', 'This is what a cheap-window alert looks like.', 'wattwatch-test')}>
                 Send a test
               </button>
+            )}
+            {native && fcmToken && (
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--divider)' }}>
+                <strong style={{ display: 'block', marginBottom: 6 }}>FCM token (for Firebase test)</strong>
+                <p className="muted" style={{ marginBottom: 10, fontSize: 13, lineHeight: 1.5 }}>
+                  Paste this into Firebase Console → Messaging → Test on device.
+                </p>
+                <code style={{ display: 'block', wordBreak: 'break-all', fontSize: 11, lineHeight: 1.45, padding: 10, borderRadius: 8, background: 'var(--bg)', border: '1px solid var(--border)' }}>
+                  {fcmToken}
+                </code>
+                <button
+                  className="btn ghost"
+                  style={{ marginTop: 10 }}
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(fcmToken);
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 2000);
+                  }}
+                >
+                  {copied ? 'Copied!' : 'Copy token'}
+                </button>
+              </div>
             )}
           </>
         ) : perm === 'denied' ? (

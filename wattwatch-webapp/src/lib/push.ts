@@ -29,6 +29,7 @@ export async function initMobilePush(): Promise<'granted' | 'denied' | 'unsuppor
 
     PushNotifications.addListener('registration', async (token) => {
       deviceToken = token.value;
+      console.log('FCM registration token:', token.value);
       try {
         await api.registerPushToken(token.value, Capacitor.getPlatform() as 'android' | 'ios', isCheapWindowNotifyEnabled());
       } catch (e) {
@@ -73,6 +74,10 @@ export async function syncCheapWindowPreference(enabled: boolean) {
       await api.updatePushPreferences(enabled);
     } catch {}
   }
+}
+
+export function getDevicePushToken(): string | null {
+  return deviceToken;
 }
 
 export async function getPushStatus() {

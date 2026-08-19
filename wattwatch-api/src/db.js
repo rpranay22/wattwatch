@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { Sequelize } from 'sequelize';
 import { sequelize } from './models/index.js';
+import { migrateKnownSchemaGaps } from './schemaMigrate.js';
 
 const useSsl = String(process.env.DB_SSL || '').toLowerCase() === 'true';
 const dbName = process.env.DB_NAME || 'wattwatch';
@@ -21,7 +22,9 @@ export async function initDatabase() {
   await bootstrap.close();
 
   await sequelize.authenticate();
+  await migrateKnownSchemaGaps();
   await sequelize.sync();
+  await migrateKnownSchemaGaps();
   console.log(`Database "${dbName}" ready — all tables synced.`);
 }
 

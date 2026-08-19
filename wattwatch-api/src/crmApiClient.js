@@ -3,7 +3,7 @@
 // Falls back to the deployed CRM on Render if the env var is missing.
 const CRM_API_URL = (
   process.env.CRM_API_URL ||
-  'https://crm-backend-bj1l.onrender.com'
+  'http://localhost:5000' // fallback for local dev
 ).replace(/\/$/, '');
 
 /** Look up a CRM customer by email. Returns null if not found or CRM unreachable. */

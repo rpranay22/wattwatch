@@ -71,4 +71,12 @@ function buildCrmTicketPayload({ customerId, subject, body, category, priority }
   };
 }
 
-export { splitName, buildCrmCustomerPayload, buildCrmTicketPayload, FALLBACK };
+/** CRM status (OPEN / IN_PROGRESS / RESOLVED) → WattWatch tickets.status */
+function mapCrmStatusToWattWatch(crmStatus) {
+  const s = String(crmStatus || '').toUpperCase();
+  if (s === 'RESOLVED') return 'resolved';
+  if (s === 'IN_PROGRESS') return 'in_progress';
+  return 'open';
+}
+
+export { splitName, buildCrmCustomerPayload, buildCrmTicketPayload, mapCrmStatusToWattWatch, FALLBACK };

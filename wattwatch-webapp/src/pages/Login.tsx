@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../state/AuthContext';
 
 export function Login() {
@@ -38,7 +38,10 @@ export function Login() {
         <button className="btn block" disabled={busy || !email || !password}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
-        <p className="auth-switch">New to WattWatch? <Link to="/signup">Create an account</Link></p>
+        <p className="auth-switch">
+          New to WattWatch?{' '}
+          <a href="https://energy-switch-platform-5.onrender.com">Create an account</a>
+        </p>
       </form>
     </div>
   );
