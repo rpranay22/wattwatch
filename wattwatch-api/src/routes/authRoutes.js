@@ -65,7 +65,7 @@ router.put('/password', requireUser, async (req, res) => {
   if (newPassword.length < 8)
     return res.status(400).json({ error: 'New password must be at least 8 characters' });
 
-  const user = await User.findByPk(req.userId, { attributes: ['password_hash'] });
+  const user = await User.findByPk(req.userId, { attributes: ['id', 'password_hash'] });
   if (!user) return res.status(401).json({ error: 'Account no longer exists' });
 
   if (!(await verifyPassword(currentPassword, user.password_hash)))
@@ -80,7 +80,7 @@ router.delete('/account', requireUser, async (req, res) => {
   const { password } = req.body || {};
   if (!password) return res.status(400).json({ error: 'Enter your password to confirm deletion' });
 
-  const user = await User.findByPk(req.userId, { attributes: ['password_hash'] });
+  const user = await User.findByPk(req.userId, { attributes: ['id', 'password_hash'] });
   if (!user) return res.status(401).json({ error: 'Account no longer exists' });
   if (!(await verifyPassword(password, user.password_hash)))
     return res.status(400).json({ error: 'That password is not correct' });
