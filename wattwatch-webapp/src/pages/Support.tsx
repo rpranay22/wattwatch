@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, TicketMessageRow, TicketRow } from '../lib/api';
+import { TICKET_CATEGORIES, TicketCategory } from '../lib/data';
 
 function statusPill(status: string) {
   if (status === 'resolved') return 'cheap';
@@ -116,6 +117,7 @@ export function Support() {
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [category, setCategory] = useState<TicketCategory>('General');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
@@ -147,10 +149,11 @@ export function Support() {
     setError(null);
     setMsg(null);
     try {
-      const created = await api.createTicket(subject, body, 'General');
+      const created = await api.createTicket(subject, body, category);
       setMsg('Ticket submitted. Our team will reply in the chat below.');
       setSubject('');
       setBody('');
+      setCategory('General');
       await load();
       setActiveId(created.id);
     } catch (e: any) {
@@ -180,6 +183,14 @@ export function Support() {
         <h3 style={{ marginBottom: 14 }}>New ticket</h3>
         {msg && <div className="ok-msg">{msg}</div>}
         {error && <div className="error-msg">{error}</div>}
+        <div className="field">
+          <label>Category</label>
+          <select value={category} onChange={(e) => setCategory(e.target.value as TicketCategory)}>
+            {TICKET_CATEGORIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
         <div className="field"><label>Subject</label><input value={subject} onChange={(e) => setSubject(e.target.value)} /></div>
         <div className="field"><label>Message</label><textarea value={body} onChange={(e) => setBody(e.target.value)} /></div>
         <button className="btn" disabled={busy} onClick={submit}>{busy ? 'Sending…' : 'Submit ticket'}</button>
@@ -193,6 +204,7 @@ export function Support() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <strong>{t.subject}</strong>
               <div className="muted" style={{ fontSize: 13 }}>
+                {t.category ? `${t.category} · ` : ''}
                 {t.unread_count
                   ? `${t.unread_count} new message${t.unread_count === 1 ? '' : 's'} from support`
                   : 'Tap Chat to view the conversation'}

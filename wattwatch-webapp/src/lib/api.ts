@@ -76,6 +76,7 @@ export interface TicketRow {
   id: string;
   subject: string;
   body: string;
+  category?: string | null;
   status: string;
   admin_reply?: string | null;
   unread_count?: number;
@@ -103,6 +104,15 @@ export const api = {
     request('/auth/account', { method: 'DELETE', body: JSON.stringify({ password }) }),
 
   getPrices: (): Promise<{ day: string; source: string; prices: number[] }> => request('/prices'),
+  getPriceAnalytics: (range: string): Promise<{
+    range: string;
+    title: string;
+    unit: string;
+    labels: string[];
+    data: number[];
+    source: string;
+    summary: { min: number; max: number; avg: number; minLabel: string; maxLabel: string };
+  }> => request(`/prices/analytics?range=${encodeURIComponent(range)}`),
 
   getOnboarding: () => request('/onboarding'),
   saveOnboarding: (a: any) => request('/onboarding', { method: 'PUT', body: JSON.stringify(a) }),

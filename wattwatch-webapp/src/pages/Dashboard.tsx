@@ -98,12 +98,6 @@ export function Dashboard() {
           <div className="usage-copy">
             <h2 className="usage-headline">{advice.headline}</h2>
             <p className="usage-action">{advice.action}</p>
-            <p className="usage-basis">
-              <strong>Why?</strong> {advice.basis}
-              {advice.nextChange && advice.verdict !== 'good' && (
-                <> Cheaper tier from {advice.nextChange.label}.</>
-              )}
-            </p>
           </div>
         </div>
       </div>

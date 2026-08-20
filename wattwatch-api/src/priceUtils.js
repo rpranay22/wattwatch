@@ -114,3 +114,20 @@ export function tierForPrice(price) {
   if (price < MODERATE_MAX) return 'moderate';
   return 'expensive';
 }
+
+/** Add days to a Dublin calendar date (YYYY-MM-DD). */
+export function offsetDublinDay(dayISO, deltaDays) {
+  const noon = findUtcForDublinLocal(dayISO, 12, 0);
+  noon.setUTCDate(noon.getUTCDate() + deltaDays);
+  return dublinDayKey(noon);
+}
+
+/** Short label e.g. "Mon 21" for chart axes. */
+export function shortDayLabel(dayISO) {
+  const noon = findUtcForDublinLocal(dayISO, 12, 0);
+  return noon.toLocaleDateString('en-IE', {
+    weekday: 'short',
+    day: 'numeric',
+    timeZone: DUBLIN,
+  });
+}

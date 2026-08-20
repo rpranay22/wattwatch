@@ -58,6 +58,53 @@ export const FAQS = [
     a: 'Your account details and preferences are stored in our database and are only used to run the service. You can request a copy of your data or delete your account from Settings.' },
 ];
 
+export const TICKET_CATEGORIES = [
+  'Billing',
+  'Subscription',
+  'Account',
+  'Technical',
+  'App feedback',
+  'General',
+] as const;
+
+export type TicketCategory = (typeof TICKET_CATEGORIES)[number];
+
+export interface BillingInvoice {
+  id: string;
+  period: string;
+  amount: string;
+  status: 'Paid' | 'Pending';
+  date: string;
+  planName: string;
+}
+
+export interface BillingState {
+  planId: string;
+  invoices: BillingInvoice[];
+  /** YYYY-MM of last successful payment */
+  paidMonth: string | null;
+}
+
+export const DEFAULT_INVOICES: BillingInvoice[] = [
+  { id: 'INV-2026-07', period: 'Standard — July 2026', amount: '€9.99', status: 'Paid', date: '01 Jul 2026', planName: 'Standard' },
+  { id: 'INV-2026-06', period: 'Standard — June 2026', amount: '€9.99', status: 'Paid', date: '01 Jun 2026', planName: 'Standard' },
+  { id: 'INV-2026-05', period: 'Standard — May 2026', amount: '€9.99', status: 'Paid', date: '01 May 2026', planName: 'Standard' },
+];
+
+const BILLING_KEY = 'ww_billing';
+
+export function loadBillingState(): BillingState {
+  try {
+    const raw = localStorage.getItem(BILLING_KEY);
+    if (raw) return JSON.parse(raw) as BillingState;
+  } catch { /* ignore */ }
+  return { planId: 'standard', invoices: [...DEFAULT_INVOICES], paidMonth: null };
+}
+
+export function saveBillingState(state: BillingState) {
+  localStorage.setItem(BILLING_KEY, JSON.stringify(state));
+}
+
 export const PLANS = [
   {
     id: 'free', name: 'Free', price: '€0',
@@ -96,8 +143,4 @@ export const PLANS = [
   },
 ];
 
-export const INVOICES = [
-  { id: 'INV-2026-07', period: 'July 2026', amount: '€9.99', status: 'Paid', date: '01 Jul 2026' },
-  { id: 'INV-2026-06', period: 'June 2026', amount: '€9.99', status: 'Paid', date: '01 Jun 2026' },
-  { id: 'INV-2026-05', period: 'May 2026', amount: '€9.99', status: 'Paid', date: '01 May 2026' },
-];
+export const INVOICES = DEFAULT_INVOICES;

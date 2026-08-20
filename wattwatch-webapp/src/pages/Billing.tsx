@@ -1,20 +1,82 @@
-import { useState } from 'react';
-import { PLANS, INVOICES } from '../lib/data';
+import { useEffect, useState } from 'react';
+import {
+  PLANS, loadBillingState, saveBillingState, BillingInvoice, BillingState,
+} from '../lib/data';
 
 const TABS = ['Plan', 'Payments', 'Invoices'] as const;
 
+function currentMonthKey() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export function Billing() {
   const [tab, setTab] = useState<(typeof TABS)[number]>('Plan');
-  const [current, setCurrent] = useState('standard');
+  const [billing, setBilling] = useState<BillingState>(() => loadBillingState());
   const [msg, setMsg] = useState<string | null>(null);
+  const [paying, setPaying] = useState(false);
+
+  useEffect(() => {
+    saveBillingState(billing);
+  }, [billing]);
+
+  const plan = PLANS.find((p) => p.id === billing.planId) ?? PLANS[1];
+  const paidThisMonth = billing.paidMonth === currentMonthKey();
+  const isFree = billing.planId === 'free';
+
+  const switchPlan = (planId: string) => {
+    setBilling((b) => ({
+      ...b,
+      planId,
+      paidMonth: planId === 'free' ? b.paidMonth : null,
+    }));
+    const name = PLANS.find((p) => p.id === planId)?.name ?? planId;
+    setMsg(planId === 'free'
+      ? `You're on the ${name} plan.`
+      : `${name} plan selected. Go to the Payments tab to pay for this month.`);
+  };
+
+  const payNow = () => {
+    if (isFree) {
+      setMsg('The Free plan has no charge.');
+      return;
+    }
+    if (paidThisMonth) {
+      setMsg('This month is already paid.');
+      return;
+    }
+
+    setPaying(true);
+    const now = new Date();
+    const monthLabel = now.toLocaleDateString('en-IE', { month: 'long', year: 'numeric' });
+    const invoice: BillingInvoice = {
+      id: `INV-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${String(now.getTime()).slice(-4)}`,
+      period: `${plan.name} — ${monthLabel}`,
+      amount: plan.price,
+      status: 'Paid',
+      date: now.toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' }),
+      planName: plan.name,
+    };
+
+    setTimeout(() => {
+      setBilling((b) => ({
+        ...b,
+        paidMonth: currentMonthKey(),
+        invoices: [invoice, ...b.invoices],
+      }));
+      setPaying(false);
+      setMsg(`Payment successful. Invoice ${invoice.id} has been generated.`);
+      setTab('Invoices');
+    }, 600);
+  };
 
   return (
     <>
-      <div className="page-head"><h1>Billing</h1><p>Your plan, payment methods and invoice history.</p></div>
+      <div className="page-head"><h1>Billing</h1><p>Your plan, payments and invoice history.</p></div>
 
       <div className="seg" style={{ marginBottom: 20 }}>
         {TABS.map((t) => (
-          <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t}</button>
+          <button key={t} className={tab === t ? 'on' : ''} onClick={() => { setTab(t); setMsg(null); }}>{t}</button>
         ))}
       </div>
 
@@ -23,7 +85,7 @@ export function Billing() {
       {tab === 'Plan' && (
         <div className="grid grid-3">
           {PLANS.map((p) => {
-            const isCurrent = p.id === current;
+            const isCurrent = p.id === billing.planId;
             return (
               <div className="card" key={p.id} style={isCurrent ? { border: '2px solid var(--brand)' } : undefined}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -42,9 +104,12 @@ export function Billing() {
                     </div>
                   ))}
                 </div>
-                <button className={`btn block ${isCurrent ? 'ghost' : ''}`} disabled={isCurrent}
-                  onClick={() => { setCurrent(p.id); setMsg(`You've switched to the ${p.name} plan.`); }}>
-                  {isCurrent ? 'Current plan' : `Switch to ${p.name}`}
+                <button
+                  className={`btn block ${isCurrent ? 'ghost' : ''}`}
+                  disabled={isCurrent}
+                  onClick={() => switchPlan(p.id)}
+                >
+                  {isCurrent ? 'Current plan' : `Select ${p.name}`}
                 </button>
               </div>
             );
@@ -58,8 +123,10 @@ export function Billing() {
             <h3 style={{ marginBottom: 14 }}>Payment method</h3>
             <div className="list-row">
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 48, height: 32, borderRadius: 6, background: 'var(--brand-deep)', color: '#fff',
-                              display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 700 }}>VISA</div>
+                <div style={{
+                  width: 48, height: 32, borderRadius: 6, background: 'var(--brand-deep)', color: '#fff',
+                  display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 700,
+                }}>VISA</div>
                 <div>
                   <strong>Visa ending 4242</strong>
                   <div className="muted">Expires 09 / 2028</div>
@@ -67,18 +134,37 @@ export function Billing() {
               </div>
               <span className="pill cheap">Default</span>
             </div>
-            <button className="btn ghost" style={{ marginTop: 14 }}
-              onClick={() => setMsg('Adding a payment method is not enabled in this prototype.')}>
-              Add payment method
-            </button>
           </div>
 
           <div className="card" style={{ maxWidth: 760 }}>
-            <h3 style={{ marginBottom: 14 }}>Next payment</h3>
-            <div className="list-row"><span className="muted">Amount</span><strong>€9.99</strong></div>
-            <div className="list-row"><span className="muted">Date</span><strong>01 August 2026</strong></div>
-            <div className="list-row"><span className="muted">Method</span><strong>Visa ending 4242</strong></div>
-            <p className="src-note">Payments are illustrative in this prototype. No card is charged and no card details are stored.</p>
+            <h3 style={{ marginBottom: 14 }}>Pay for your plan</h3>
+            <div className="list-row"><span className="muted">Plan</span><strong>{plan.name}</strong></div>
+            <div className="list-row"><span className="muted">Amount</span><strong>{plan.price}{isFree ? '' : ' / month'}</strong></div>
+            <div className="list-row">
+              <span className="muted">Status</span>
+              {isFree ? (
+                <span className="pill cheap">No payment needed</span>
+              ) : paidThisMonth ? (
+                <span className="pill cheap">Paid this month</span>
+              ) : (
+                <span className="pill moderate">Payment due</span>
+              )}
+            </div>
+
+            {!isFree && (
+              <button
+                className="btn"
+                style={{ marginTop: 16 }}
+                disabled={paying || paidThisMonth}
+                onClick={payNow}
+              >
+                {paying ? 'Processing…' : paidThisMonth ? 'Paid' : `Pay ${plan.price}`}
+              </button>
+            )}
+
+            <p className="src-note" style={{ marginTop: 14 }}>
+              Demo only — no card is charged. Paying generates a fake invoice in the Invoices tab.
+            </p>
           </div>
         </>
       )}
@@ -86,19 +172,25 @@ export function Billing() {
       {tab === 'Invoices' && (
         <div className="card">
           <h3 style={{ marginBottom: 12 }}>Invoice history</h3>
-          <table>
-            <thead><tr><th>Invoice</th><th>Period</th><th>Date</th><th>Amount</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-              {INVOICES.map((i) => (
-                <tr key={i.id}>
-                  <td>{i.id}</td><td>{i.period}</td><td>{i.date}</td><td>{i.amount}</td>
-                  <td><span className="pill cheap">{i.status}</span></td>
-                  <td><button className="btn ghost" onClick={() => setMsg(`Downloading ${i.id} is not enabled in this prototype.`)}>Download</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="src-note">Invoice history is illustrative for the prototype.</p>
+          {billing.invoices.length === 0 ? (
+            <p className="muted">No invoices yet. Pay for your plan in the Payments tab.</p>
+          ) : (
+            <table>
+              <thead><tr><th>Invoice</th><th>Period</th><th>Plan</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead>
+              <tbody>
+                {billing.invoices.map((i) => (
+                  <tr key={i.id}>
+                    <td>{i.id}</td>
+                    <td>{i.period}</td>
+                    <td>{i.planName}</td>
+                    <td>{i.date}</td>
+                    <td>{i.amount}</td>
+                    <td><span className={`pill ${i.status === 'Paid' ? 'cheap' : 'moderate'}`}>{i.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
     </>
