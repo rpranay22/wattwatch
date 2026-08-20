@@ -72,6 +72,24 @@ export interface Alert {
   condition?: 'below' | 'above'; threshold?: number;
   start?: string; end?: string; days: string[]; enabled: boolean;
 }
+export interface TicketRow {
+  id: string;
+  subject: string;
+  body: string;
+  status: string;
+  admin_reply?: string | null;
+  unread_count?: number;
+  created_at: string;
+  updated_at?: string;
+}
+export interface TicketMessageRow {
+  id: number;
+  ticket_id: string;
+  sender_role: 'customer' | 'staff';
+  sender_name: string | null;
+  body: string;
+  created_at: string;
+}
 
 export const api = {
   signup: (email: string, password: string, fullName?: string) =>
@@ -110,7 +128,13 @@ export const api = {
   requestExport: (format: 'pdf' | 'csv' | 'json', period?: string) =>
     request('/exports', { method: 'POST', body: JSON.stringify({ format, period }) }),
 
-  listTickets: () => request('/tickets'),
+  listTickets: (): Promise<TicketRow[]> => request('/tickets'),
+  getTicketUnread: (): Promise<{ total: number; tickets: { ticketId: string; subject: string; count: number }[] }> =>
+    request('/tickets/unread'),
+  getTicketMessages: (id: string): Promise<{ ticket: TicketRow; messages: TicketMessageRow[] }> =>
+    request(`/tickets/${id}/messages`),
+  sendTicketMessage: (id: string, body: string) =>
+    request(`/tickets/${id}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
   createTicket: (subject: string, body: string, category?: string) =>
     request('/tickets', { method: 'POST', body: JSON.stringify({ subject, body, category }) }),
 

@@ -49,6 +49,8 @@ async function patchTicketsColumns() {
     crm_id: { type: DataTypes.STRING(80), allowNull: true },
     updated_at: { type: DataTypes.DATE, allowNull: true, defaultValue: DataTypes.NOW },
     admin_reply: { type: DataTypes.TEXT, allowNull: true },
+    customer_last_read_at: { type: DataTypes.DATE, allowNull: true },
+    staff_last_read_at: { type: DataTypes.DATE, allowNull: true },
   };
 
   for (const [col, def] of Object.entries(ticketAdds)) {

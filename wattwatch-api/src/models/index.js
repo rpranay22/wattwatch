@@ -90,9 +90,20 @@ export const Ticket = sequelize.define('Ticket', {
   admin_reply: { type: DataTypes.TEXT, allowNull: true },
   replied_by: { type: DataTypes.CHAR(36), allowNull: true },
   crm_id: { type: DataTypes.STRING(80), allowNull: true },
+  customer_last_read_at: { type: DataTypes.DATE, allowNull: true },
+  staff_last_read_at: { type: DataTypes.DATE, allowNull: true },
   created_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   updated_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
 }, { tableName: 'tickets' });
+
+export const TicketMessage = sequelize.define('TicketMessage', {
+  id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
+  ticket_id: { type: DataTypes.CHAR(36), allowNull: false },
+  sender_role: { type: DataTypes.ENUM('customer', 'staff'), allowNull: false },
+  sender_name: { type: DataTypes.STRING(120), allowNull: true },
+  body: { type: DataTypes.TEXT, allowNull: false },
+  created_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+}, { tableName: 'ticket_messages' });
 
 // Export model - FIXED: user_id now matches User.id type (INTEGER)
 export const Export = sequelize.define('Export', {
@@ -175,6 +186,9 @@ Alert.belongsTo(User, { foreignKey: 'user_id' });
 
 User.hasMany(Ticket, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 Ticket.belongsTo(User, { foreignKey: 'user_id' });
+
+Ticket.hasMany(TicketMessage, { foreignKey: 'ticket_id', onDelete: 'CASCADE' });
+TicketMessage.belongsTo(Ticket, { foreignKey: 'ticket_id' });
 
 User.hasMany(Export, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 Export.belongsTo(User, { foreignKey: 'user_id' });

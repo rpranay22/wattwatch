@@ -2,6 +2,14 @@ import { safeRouter } from '../safeRouter.js';
 import { User, Onboarding, Ticket, Alert, Export, AdminUser, ActivityLog, Profile, sequelize } from '../models/index.js';
 import { requireAdmin, requireWriteRole } from '../auth.js';
 import { logActivity } from '../activity.js';
+import {
+  addTicketMessage,
+  ensureTicketThread,
+  listTicketMessages,
+  markReadByStaff,
+  unreadCountForTicket,
+  unreadSummaryForStaff,
+} from '../ticketMessages.js';
 
 const router = safeRouter();
 router.use(requireAdmin);
@@ -84,6 +92,55 @@ router.get('/tickets', async (req, res) => {
     const { User: userRow, replier, ...ticket } = plain;
     return { ...ticket, email: userRow?.email, replied_by_name: replier?.full_name ?? null };
   }));
+});
+
+router.get('/tickets/unread', async (req, res) => {
+  const summary = await unreadSummaryForStaff();
+  res.json(summary);
+});
+
+router.get('/tickets/:id/messages', async (req, res) => {
+  const ticket = await Ticket.findByPk(req.params.id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+  await ensureTicketThread(ticket);
+  await markReadByStaff(ticket.id);
+
+  const messages = await listTicketMessages(ticket.id);
+  res.json({
+    ticket: ticket.get({ plain: true }),
+    messages: messages.map((m) => m.get({ plain: true })),
+  });
+});
+
+router.post('/tickets/:id/messages', requireWriteRole, async (req, res) => {
+  const { body, senderName = 'Support' } = req.body || {};
+  if (!body || !String(body).trim()) {
+    return res.status(400).json({ error: 'Message is required' });
+  }
+
+  const ticket = await Ticket.findByPk(req.params.id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+  if (ticket.status === 'open') {
+    await ticket.update({ status: 'in_progress', updated_at: new Date() });
+  }
+
+  const message = await addTicketMessage({
+    ticketId: ticket.id,
+    senderRole: 'staff',
+    senderName,
+    body,
+  });
+
+  await ticket.update({
+    admin_reply: String(body).trim(),
+    replied_by: req.adminId,
+    updated_at: new Date(),
+  });
+
+  await logActivity({ adminId: req.adminId, action: 'ticket_message', detail: { id: ticket.id } });
+  res.status(201).json(message.get({ plain: true }));
 });
 
 router.put('/tickets/:id', requireWriteRole, async (req, res) => {
