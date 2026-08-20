@@ -62,7 +62,7 @@ ok('buildCrmTicketPayload: an over-long subject is truncated to fit STRING(180)'
 assert.strictEqual(mapCrmStatusToWattWatch('RESOLVED'), 'resolved');
 assert.strictEqual(mapCrmStatusToWattWatch('IN_PROGRESS'), 'in_progress');
 // Profile field mapping tests
-import { crmCustomerToProfileFields } from '../src/crmProfileSync.js';
+import { crmCustomerToProfileFields, normalizeSupplier } from '../src/crmProfileSync.js';
 
 const mapped = crmCustomerToProfileFields({
   firstName: 'Jane',
@@ -77,5 +77,9 @@ assert.strictEqual(mapped.full_name, 'Jane Murphy');
 assert.strictEqual(mapped.supplier, 'Electric Ireland');
 assert.strictEqual(mapped.eircode, 'D01 AB12');
 ok('crmCustomerToProfileFields: maps energy-switch customer to WattWatch profile');
+
+assert.strictEqual(normalizeSupplier('PrepayPower'), 'PrePay Power');
+assert.strictEqual(normalizeSupplier('electric ireland'), 'Electric Ireland');
+ok('normalizeSupplier: aligns FormPage provider names');
 
 console.log(`\n${n} checks passed.`);

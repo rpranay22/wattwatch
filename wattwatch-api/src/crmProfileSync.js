@@ -11,6 +11,25 @@ function normalizeEmail(email) {
   return String(email || '').toLowerCase().trim();
 }
 
+const CANONICAL_SUPPLIERS = [
+  'Electric Ireland',
+  'Bord Gáis Energy',
+  'Energia',
+  'SSE Airtricity',
+  'PrePay Power',
+  'Other',
+];
+
+/** Align energy-switch provider names with WattWatch supplier labels. */
+export function normalizeSupplier(value) {
+  if (value == null || String(value).trim() === '') return null;
+  const raw = String(value).trim();
+  const compact = raw.toLowerCase().replace(/[\s-]+/g, '');
+  if (compact === 'prepaypower') return 'PrePay Power';
+  const match = CANONICAL_SUPPLIERS.find((s) => s.toLowerCase() === raw.toLowerCase());
+  return match || raw;
+}
+
 /** Map CRM / energy-switch customer row → WattWatch profile columns. */
 export function crmCustomerToProfileFields(customer) {
   const c = customer?.get ? customer.get({ plain: true }) : customer;
@@ -25,7 +44,7 @@ export function crmCustomerToProfileFields(customer) {
     address: c.address || null,
     city: c.city || null,
     eircode: c.eircode || null,
-    supplier: c.provider || c.supplier || null,
+    supplier: normalizeSupplier(c.provider || c.supplier),
   };
 }
 

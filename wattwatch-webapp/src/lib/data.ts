@@ -5,6 +5,16 @@ export const SUPPLIERS = [
   'SSE Airtricity', 'PrePay Power', 'Other',
 ] as const;
 
+/** Match energy-switch provider labels to WattWatch supplier options. */
+export function normalizeSupplier(value: string | null | undefined): string | null {
+  if (value == null || String(value).trim() === '') return null;
+  const raw = String(value).trim();
+  const compact = raw.toLowerCase().replace(/[\s-]+/g, '');
+  if (compact === 'prepaypower') return 'PrePay Power';
+  const match = SUPPLIERS.find((s) => s.toLowerCase() === raw.toLowerCase());
+  return match ?? raw;
+}
+
 export type DeviceKey = 'ev' | 'heatpump' | 'solar' | 'battery';
 
 export const DEVICE_OPTIONS: { key: DeviceKey; label: string; icon: string }[] = [

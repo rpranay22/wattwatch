@@ -1,16 +1,27 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import { DEVICE_OPTIONS, DeviceKey, HOUSEHOLD_SIZES, SUPPLIERS } from '../lib/data';
+import { DEVICE_OPTIONS, DeviceKey, HOUSEHOLD_SIZES, SUPPLIERS, normalizeSupplier } from '../lib/data';
 
-// Two-step onboarding: a welcome/explainer, then the three questions.
-// Answers save to the onboarding table via the API.
+// Two-step onboarding: a welcome/explainer, then setup questions.
+// Supplier is pre-filled from energy-switch signup (profile sync) when available.
 export function Onboarding({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0);
   const [devices, setDevices] = useState<DeviceKey[]>([]);
   const [size, setSize] = useState<string | null>(null);
   const [supplier, setSupplier] = useState<string | null>(null);
+  const [supplierFromSignup, setSupplierFromSignup] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.getProfile().then((p: any) => {
+      const fromSignup = normalizeSupplier(p?.supplier);
+      if (fromSignup) {
+        setSupplier(fromSignup);
+        setSupplierFromSignup(fromSignup);
+      }
+    }).catch(() => {});
+  }, []);
 
   const toggleDevice = (k: DeviceKey) =>
     setDevices((d) => (d.includes(k) ? d.filter((x) => x !== k) : [...d, k]));
@@ -47,7 +58,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           </div>
 
           <p className="muted" style={{ fontSize: 13, marginBottom: 18 }}>
-            Next we'll ask three quick questions so the advice fits your home. We only use this to
+            Next we'll ask a couple of quick questions so the advice fits your home. We only use this to
             tailor recommendations.
           </p>
           <button className="btn block" onClick={() => setStep(1)}>Get started</button>
@@ -60,7 +71,11 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
     <div className="auth-wrap">
       <div className="auth-card" style={{ width: 520 }}>
         <div className="brand-row"><div className="bolt">⚡</div><h1>Tell us about your home</h1></div>
-        <p className="subtitle">Three quick questions. You can change these later in Settings.</p>
+        <p className="subtitle">
+          {supplierFromSignup
+            ? 'Two quick questions — your supplier is already saved from signup.'
+            : 'Three quick questions. You can change these later in Settings.'}
+        </p>
         {error && <div className="error-msg">{error}</div>}
 
         <div className="field">
@@ -92,13 +107,33 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           </div>
         </div>
 
-        <div className="field">
-          <label>Who is your electricity supplier?</label>
-          <select value={supplier ?? ''} onChange={(e) => setSupplier(e.target.value || null)}>
-            <option value="">Select a supplier</option>
-            {SUPPLIERS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
+        {supplierFromSignup ? (
+          <div className="field">
+            <label>Electricity supplier</label>
+            <div
+              style={{
+                padding: '13px 14px',
+                borderRadius: 12,
+                border: '1.5px solid var(--border)',
+                background: 'var(--brand-tint)',
+                fontSize: 14,
+              }}
+            >
+              <strong>{supplierFromSignup}</strong>
+              <span className="muted" style={{ display: 'block', marginTop: 4, fontSize: 13 }}>
+                Imported from your energy-switch signup. Change it anytime under My details.
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="field">
+            <label>Who is your electricity supplier?</label>
+            <select value={supplier ?? ''} onChange={(e) => setSupplier(e.target.value || null)}>
+              <option value="">Select a supplier</option>
+              {SUPPLIERS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        )}
 
         <button className="btn block" disabled={busy || !size} onClick={finish}>
           {busy ? 'Saving…' : 'Finish setup'}

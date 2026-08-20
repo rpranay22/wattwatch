@@ -1,5 +1,5 @@
 import { safeRouter } from '../safeRouter.js';
-import { Onboarding } from '../models/index.js';
+import { Onboarding, Profile } from '../models/index.js';
 import { requireUser } from '../auth.js';
 import { logActivity } from '../activity.js';
 
@@ -17,7 +17,13 @@ router.get('/', async (req, res) => {
 });
 
 router.put('/', async (req, res) => {
-  const { devices = [], householdSize = null, supplier = null } = req.body || {};
+  let { devices = [], householdSize = null, supplier = null } = req.body || {};
+
+  if (!supplier || String(supplier).trim() === '') {
+    const profile = await Profile.findByPk(req.userId, { attributes: ['supplier'] });
+    supplier = profile?.supplier || null;
+  }
+
   await Onboarding.upsert({
     user_id: req.userId,
     devices,
