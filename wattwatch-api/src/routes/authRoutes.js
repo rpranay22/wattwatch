@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { logActivity } from '../activity.js';
 import { hashPassword, requireUser, signUserToken, verifyPassword } from '../auth.js';
 import { lookupCrmCustomer, syncPasswordToCrm } from '../crmApiClient.js';
+import { syncProfileFromCrm } from '../crmProfileSync.js';
 import { Profile, User } from '../models/index.js';
 import { safeRouter } from '../safeRouter.js';
 
@@ -48,6 +49,8 @@ router.post('/login', async (req, res) => {
   } else {
     await user.update({ password_hash: passwordHash, last_login_at: new Date() });
   }
+
+  await syncProfileFromCrm(user.id, normalized).catch(() => {});
 
   res.json({ token: signUserToken(user), user: { id: user.id, email: user.email } });
 });

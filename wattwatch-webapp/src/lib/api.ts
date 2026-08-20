@@ -122,6 +122,7 @@ export const api = {
   }> => request('/usage/savings'),
 
   getProfile: () => request('/profile'),
+  syncProfileFromCrm: () => request('/profile/sync', { method: 'POST' }),
   saveProfile: (p: any) => request('/profile', { method: 'PUT', body: JSON.stringify(p) }),
 
   listExports: () => request('/exports'),

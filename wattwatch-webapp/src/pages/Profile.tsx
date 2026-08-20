@@ -32,12 +32,40 @@ export function Profile() {
 
   return (
     <>
-      <div className="page-head"><h1>My details</h1><p>Keep your account and supply information up to date.</p></div>
+      <div className="page-head">
+        <h1>My details</h1>
+        <p>Keep your account and supply information up to date. Details from your energy-switch signup are imported automatically.</p>
+      </div>
 
       <div className="card" style={{ maxWidth: 720 }}>
         {msg && <div className="ok-msg">{msg}</div>}
         {error && <div className="error-msg">{error}</div>}
 
+        <div style={{ marginBottom: 16 }}>
+          <button
+            type="button"
+            className="btn ghost"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true); setMsg(null); setError(null);
+              try {
+                const r = await api.syncProfileFromCrm();
+                const p = r.profile;
+                if (p) {
+                  setForm({
+                    fullName: p.full_name ?? '', phone: p.phone ?? '', mprn: p.mprn ?? '',
+                    address: p.address ?? '', city: p.city ?? '', eircode: p.eircode ?? '',
+                    supplier: p.supplier ?? '',
+                  });
+                }
+                setMsg('Details refreshed from your energy-switch signup.');
+              } catch (e: any) { setError(e.message); }
+              finally { setBusy(false); }
+            }}
+          >
+            Refresh from signup
+          </button>
+        </div>
         <div className="field">
           <label>Email (sign-in address)</label>
           <input value={user?.email ?? ''} disabled style={{ opacity: .65 }} />

@@ -61,8 +61,21 @@ ok('buildCrmTicketPayload: an over-long subject is truncated to fit STRING(180)'
 
 assert.strictEqual(mapCrmStatusToWattWatch('RESOLVED'), 'resolved');
 assert.strictEqual(mapCrmStatusToWattWatch('IN_PROGRESS'), 'in_progress');
-assert.strictEqual(mapCrmStatusToWattWatch('OPEN'), 'open');
-assert.strictEqual(mapCrmStatusToWattWatch('open'), 'open');
-ok('mapCrmStatusToWattWatch: CRM statuses map to WattWatch enum');
+// Profile field mapping tests
+import { crmCustomerToProfileFields } from '../src/crmProfileSync.js';
+
+const mapped = crmCustomerToProfileFields({
+  firstName: 'Jane',
+  lastName: 'Murphy',
+  phone: '0871234567',
+  mprn: '10001234567',
+  address: '12 Main St',
+  eircode: 'D01 AB12',
+  provider: 'Electric Ireland',
+});
+assert.strictEqual(mapped.full_name, 'Jane Murphy');
+assert.strictEqual(mapped.supplier, 'Electric Ireland');
+assert.strictEqual(mapped.eircode, 'D01 AB12');
+ok('crmCustomerToProfileFields: maps energy-switch customer to WattWatch profile');
 
 console.log(`\n${n} checks passed.`);

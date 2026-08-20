@@ -16,5 +16,7 @@ services:
         value: "3306"
       - key: CRM_API_URL
         value: "https://crm-backend-bj1l.onrender.com"
+      - key: ENERGY_SWITCH_API_URL
+        value: "https://ui-dev-backend.onrender.com"
       # Firebase FCM v1: paste service account JSON into FIREBASE_SERVICE_ACCOUNT_JSON in Render dashboard
       # (Project settings → Service accounts → Generate new private key)
