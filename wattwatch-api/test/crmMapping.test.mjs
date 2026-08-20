@@ -82,4 +82,9 @@ assert.strictEqual(normalizeSupplier('PrepayPower'), 'PrePay Power');
 assert.strictEqual(normalizeSupplier('electric ireland'), 'Electric Ireland');
 ok('normalizeSupplier: aligns FormPage provider names');
 
+import { extractPasswordHash } from '../src/crmApiClient.js';
+assert.strictEqual(extractPasswordHash({ data: '$2b$10$abc' }), '$2b$10$abc');
+assert.strictEqual(extractPasswordHash(null), null);
+ok('extractPasswordHash: reads CRM lookup payload');
+
 console.log(`\n${n} checks passed.`);

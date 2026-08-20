@@ -1,8 +1,7 @@
-// APP user auth. Writes to the users table only.
-import { randomUUID } from 'crypto';
+// APP user auth. Login password is owned by CRM customers.passwordHash (shared DB).
 import { logActivity } from '../activity.js';
 import { hashPassword, requireUser, signUserToken, verifyPassword } from '../auth.js';
-import { lookupCrmCustomer, syncPasswordToCrm } from '../crmApiClient.js';
+import { resolveLoginPasswordHash, syncPasswordToCrm } from '../crmApiClient.js';
 import { syncProfileFromCrm } from '../crmProfileSync.js';
 import { Profile, User } from '../models/index.js';
 import { safeRouter } from '../safeRouter.js';
@@ -16,16 +15,24 @@ router.post('/signup', async (req, res) => {
   if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
   const normalized = email.toLowerCase().trim();
-  const dupe = await User.findOne({ where: { email: normalized } });
-  if (dupe) return res.status(409).json({ error: 'That email is already registered' });
+  const passwordHash = await hashPassword(password);
+  const synced = await syncPasswordToCrm(normalized, passwordHash);
+  if (!synced) {
+    return res.status(409).json({
+      error: 'This email is not registered in our system. Sign up via the energy-switch form first.',
+    });
+  }
 
-  const id = randomUUID();
-  await User.create({ id, email: normalized, password_hash: await hashPassword(password) });
-  await Profile.create({ user_id: id, full_name: fullName });
-  await logActivity({ userId: id, action: 'signup' });
+  let user = await User.findOne({ where: { email: normalized } });
+  if (!user) {
+    user = await User.create({ email: normalized, password_hash: passwordHash });
+    await Profile.create({ user_id: user.id, full_name: fullName });
+  } else {
+    await user.update({ password_hash: passwordHash });
+  }
 
-  const user = { id, email: normalized };
-  res.status(201).json({ token: signUserToken(user), user });
+  await logActivity({ userId: user.id, action: 'signup' });
+  res.status(201).json({ token: signUserToken(user), user: { id: user.id, email: normalized } });
 });
 
 router.post('/login', async (req, res) => {
@@ -33,19 +40,14 @@ router.post('/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
   const normalized = String(email).toLowerCase().trim();
-  const crmCustomer = await lookupCrmCustomer(normalized);
-  const passwordHash = crmCustomer?.data;
+  const passwordHash = await resolveLoginPasswordHash(normalized);
   if (!passwordHash || !(await verifyPassword(password, passwordHash)))
     return res.status(401).json({ error: 'Wrong email or password' });
 
-  if (crmCustomer.status === 'suspended' || crmCustomer.status === 'SUSPENDED')
-    return res.status(403).json({ error: 'This account has been suspended. Contact support.' });
-
   let user = await User.findOne({ where: { email: normalized } });
   if (!user) {
-    const id = randomUUID();
-    user = await User.create({ id, email: normalized, password_hash: passwordHash });
-    await Profile.create({ user_id: id, full_name: null });
+    user = await User.create({ email: normalized, password_hash: passwordHash });
+    await Profile.create({ user_id: user.id, full_name: null });
   } else {
     await user.update({ password_hash: passwordHash, last_login_at: new Date() });
   }
@@ -71,22 +73,16 @@ router.put('/password', requireUser, async (req, res) => {
   const user = await User.findByPk(req.userId, { attributes: ['id', 'email', 'password_hash'] });
   if (!user) return res.status(401).json({ error: 'Account no longer exists' });
 
-  const crmLookup = await lookupCrmCustomer(user.email);
-  const hashForVerify = crmLookup?.data ?? user.password_hash;
-
+  const hashForVerify = await resolveLoginPasswordHash(user.email) ?? user.password_hash;
   if (!(await verifyPassword(currentPassword, hashForVerify)))
     return res.status(400).json({ error: 'Your current password is not correct' });
 
   const newHash = await hashPassword(newPassword);
-
-  // Login checks CRM — update CRM first so old password stops working immediately.
-  if (crmLookup?.data) {
-    const synced = await syncPasswordToCrm(user.email, newHash);
-    if (!synced) {
-      return res.status(502).json({
-        error: 'Could not update your password in the account system. Please try again later.',
-      });
-    }
+  const synced = await syncPasswordToCrm(user.email, newHash);
+  if (!synced) {
+    return res.status(502).json({
+      error: 'Could not update your password in the account system. Please try again later.',
+    });
   }
 
   await user.update({ password_hash: newHash });
@@ -98,9 +94,11 @@ router.delete('/account', requireUser, async (req, res) => {
   const { password } = req.body || {};
   if (!password) return res.status(400).json({ error: 'Enter your password to confirm deletion' });
 
-  const user = await User.findByPk(req.userId, { attributes: ['id', 'password_hash'] });
+  const user = await User.findByPk(req.userId, { attributes: ['id', 'email', 'password_hash'] });
   if (!user) return res.status(401).json({ error: 'Account no longer exists' });
-  if (!(await verifyPassword(password, user.password_hash)))
+
+  const hashForVerify = await resolveLoginPasswordHash(user.email) ?? user.password_hash;
+  if (!(await verifyPassword(password, hashForVerify)))
     return res.status(400).json({ error: 'That password is not correct' });
 
   await logActivity({ userId: req.userId, action: 'account_delete' });
@@ -119,11 +117,10 @@ router.post('/device', async (req, res) => {
   if (user) {
     await user.update({ last_login_at: new Date() });
   } else {
-    const id = randomUUID();
-    await User.create({ id, email, password_hash: await hashPassword(randomUUID()) });
-    await Profile.create({ user_id: id, full_name: null });
-    await logActivity({ userId: id, action: 'device_register' });
-    user = { id, email };
+    const { randomUUID } = await import('crypto');
+    user = await User.create({ email, password_hash: await hashPassword(randomUUID()) });
+    await Profile.create({ user_id: user.id, full_name: null });
+    await logActivity({ userId: user.id, action: 'device_register' });
   }
 
   res.json({ token: signUserToken(user), user });
