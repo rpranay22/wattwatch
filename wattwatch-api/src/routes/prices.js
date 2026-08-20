@@ -7,8 +7,11 @@ import { getHalfHourlyPrices } from '../entso.js';
 const router = safeRouter();
 
 router.get('/', async (req, res) => {
-  const { prices, source, day } = await getHalfHourlyPrices();
-  res.json({ day, source, prices });
+  const day = typeof req.query.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.day)
+    ? req.query.day
+    : undefined;
+  const { prices, source, day: resolvedDay } = await getHalfHourlyPrices(day);
+  res.json({ day: resolvedDay, source, prices });
 });
 
 export default router;

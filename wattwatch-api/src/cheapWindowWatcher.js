@@ -1,7 +1,7 @@
 // Server-side cheap-window watcher. Sends FCM push to all registered devices
 // when ENTSO-E price enters the cheap tier — works even when the app is closed.
 
-import { getHalfHourlyPrices } from './entso.js';
+import { getHalfHourlyPrices, dublinSlot } from './entso.js';
 import { PushToken } from './models/index.js';
 import { sendFcmToTokens, tierForPrice, cheapWindowMessage } from './pushService.js';
 
@@ -10,8 +10,7 @@ let cheapWindowNotified = false;
 let lastDay = null;
 
 function currentSlot() {
-  const now = new Date();
-  return Math.floor((now.getHours() * 60 + now.getMinutes()) / 30);
+  return dublinSlot();
 }
 
 async function tick() {

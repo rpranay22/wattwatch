@@ -1,5 +1,11 @@
 import { Op } from 'sequelize';
 import { UsageDaily } from './models/index.js';
+import {
+  dublinDayKey,
+  getHalfHourlyPrices,
+  statsFromPrices,
+  cheapestWindowFromPrices,
+} from './entso.js';
 
 function seeded(str) {
   let h = 2166136261;
@@ -8,24 +14,31 @@ function seeded(str) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 
-export function computeDay(userId, dayISO) {
+/** Build one calendar day: kWh is simulated; prices come from ENTSO-E for that day. */
+export async function computeDay(userId, dayISO) {
+  const { prices } = await getHalfHourlyPrices(dayISO);
+  const stats = statsFromPrices(prices);
+  const win = cheapestWindowFromPrices(prices, 6);
+
   const r = seeded(userId + dayISO);
   const kwh = +(6 + r() * 16).toFixed(1);
-  const avg = +(0.17 + r() * 0.09).toFixed(3);
-  const low = +(avg - (0.02 + r() * 0.03)).toFixed(3);
-  const peak = +(avg + (0.04 + r() * 0.06)).toFixed(3);
-  const cost = +(kwh * avg).toFixed(2);
-  const startH = Math.floor(r() * 4);
-  const best = `${String(startH).padStart(2, '0')}:00-${String(startH + 3).padStart(2, '0')}:00`;
-  return { kwh, cost, avg_price: avg, peak_price: peak, low_price: low, best_window: best };
+  const cost = +(kwh * stats.avg).toFixed(2);
+
+  return {
+    kwh,
+    cost,
+    avg_price: +stats.avg.toFixed(4),
+    peak_price: +stats.max.toFixed(4),
+    low_price: +stats.min.toFixed(4),
+    best_window: win.label,
+  };
 }
 
 export async function getMonthUsage(userId, year, month) {
-  const first = new Date(Date.UTC(year, month - 1, 1));
-  const today = new Date();
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
   const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+  const todayKey = dublinDayKey();
 
   const existing = await UsageDaily.findAll({
     where: { user_id: userId, day: { [Op.between]: [monthStart, monthEnd] } },
@@ -34,32 +47,24 @@ export async function getMonthUsage(userId, year, month) {
 
   const out = [];
   for (let d = 1; d <= daysInMonth; d++) {
-    const date = new Date(Date.UTC(year, month - 1, d));
-    if (date > today) break;
-    const iso = date.toISOString().slice(0, 10);
-    if (have.has(iso)) { out.push(rowToJson(have.get(iso))); continue; }
+    const iso = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    if (iso > todayKey) break;
 
-    const g = computeDay(userId, iso);
-    await UsageDaily.findOrCreate({
-      where: { user_id: userId, day: iso },
-      defaults: { ...g },
+    const row = have.get(iso);
+    const kwh = row ? Number(row.kwh) : null;
+    const g = await computeDay(userId, iso);
+
+    // Keep stable simulated kWh; always refresh ENTSO-derived price fields.
+    const data = kwh != null ? { ...g, kwh, cost: +(kwh * g.avg_price).toFixed(2) } : g;
+
+    await UsageDaily.upsert({
+      user_id: userId,
+      day: iso,
+      ...data,
     });
-    out.push({ day: iso, ...g });
+    out.push({ day: iso, ...data });
   }
   return out;
-}
-
-function rowToJson(r) {
-  const plain = r.get ? r.get({ plain: true }) : r;
-  return {
-    day: plain.day,
-    kwh: Number(plain.kwh),
-    cost: Number(plain.cost),
-    avg_price: Number(plain.avg_price),
-    peak_price: Number(plain.peak_price),
-    low_price: Number(plain.low_price),
-    best_window: plain.best_window,
-  };
 }
 
 /** Savings vs running the same kWh entirely at that day's peak rate. */
@@ -89,12 +94,11 @@ export async function getSavingsSummary(userId) {
   const month = now.getMonth() + 1;
   const days = await getMonthUsage(userId, year, month);
 
-  const todayISO = now.toISOString().slice(0, 10);
+  const todayISO = dublinDayKey(now);
   const weekStart = new Date(now);
-  weekStart.setUTCDate(weekStart.getUTCDate() - 6);
-  const weekStartISO = weekStart.toISOString().slice(0, 10);
+  weekStart.setDate(weekStart.getDate() - 6);
+  const weekStartISO = dublinDayKey(weekStart);
 
-  // Also pull days from previous month if week spans month boundary
   let weekDays = days.filter((d) => d.day >= weekStartISO);
   if (weekStartISO < `${year}-${String(month).padStart(2, '0')}-01`) {
     const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
@@ -127,6 +131,6 @@ export async function getSavingsSummary(userId) {
     today: roundSavings(today),
     week: roundSavings(week),
     month: roundSavings(monthTotals),
-    basis: 'Savings = what you would have paid at peak rate minus what you actually paid, by shifting use to cheaper windows.',
+    basis: 'Savings = what you would have paid at peak rate minus what you actually paid, using ENTSO-E day-ahead prices for each day.',
   };
 }

@@ -8,6 +8,7 @@ import { useAuth } from './AuthContext';
 interface AppDataState {
   alerts: Alert[];
   priceSource: string;
+  priceTick: number;
   refreshAlerts: () => Promise<void>;
 }
 const Ctx = createContext<AppDataState | null>(null);
@@ -16,6 +17,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [priceSource, setPriceSource] = useState('built-in');
+  const [priceTick, setPriceTick] = useState(0);
 
   const refreshAlerts = useCallback(async () => {
     try { setAlerts(await api.listAlerts()); } catch {}
@@ -26,13 +28,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       resetCheapWindowState();
       return;
     }
-    (async () => {
+
+    const refreshPrices = async () => {
       try {
         const prices = await api.getPrices();
-        if (prices?.prices) { setLivePrices(prices.prices, prices.source); setPriceSource(prices.source); }
+        if (prices?.prices?.length === 48) {
+          setLivePrices(prices.prices, prices.source);
+          setPriceSource(prices.source);
+          setPriceTick((t) => t + 1);
+        }
       } catch {}
-      refreshAlerts();
-    })();
+    };
+
+    refreshPrices();
+    refreshAlerts();
+
+    const priceTimer = setInterval(refreshPrices, 15 * 60 * 1000);
+    return () => clearInterval(priceTimer);
   }, [user, refreshAlerts]);
 
   // Check price every minute: custom alerts + automatic cheap-window push.
@@ -50,7 +62,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [user, alerts]);
 
-  return <Ctx.Provider value={{ alerts, priceSource, refreshAlerts }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ alerts, priceSource, priceTick, refreshAlerts }}>{children}</Ctx.Provider>;
 }
 export function useAppData() {
   const c = useContext(Ctx);

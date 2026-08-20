@@ -6,24 +6,13 @@ const colors = {
 
 /**
  * Half-hourly retail price in EUR/kWh, index 0 = 00:00, index 47 = 23:30.
- *
- * Shape mirrors a typical Irish dynamic tariff day and must stay consistent
- * with the copy shown to users on the onboarding Explainer screen:
- *   - overnight trough  (00:00-06:30) cheap, minimum around 03:00
- *   - morning bump      (08:00-08:30) moderate
- *   - midday solar dip  (13:00-14:00) moderate
- *   - evening peak      (17:00-20:00) expensive, maximum around 18:30
- * Replaced by the live SEMOpx feed in v0.2. See docs/BUILD_AND_RELEASE.md.
+ * Must stay in sync with wattwatch-api/src/entso.js FALLBACK.
  */
 export const HALF_HOURLY_PRICES: number[] = [
-  0.168, 0.162, 0.157, 0.152, 0.148, 0.145, // 00:00 - 02:30
-  0.143, 0.144, 0.147, 0.152, 0.158, 0.166, // 03:00 - 05:30
-  0.178, 0.192, 0.213, 0.234, 0.248, 0.252, // 06:00 - 08:30
-  0.246, 0.236, 0.227, 0.220, 0.214, 0.208, // 09:00 - 11:30
-  0.208, 0.204, 0.203, 0.203, 0.205, 0.209, // 12:00 - 14:30
-  0.216, 0.224, 0.238, 0.257, 0.284, 0.301, // 15:00 - 17:30
-  0.318, 0.326, 0.321, 0.305, 0.281, 0.252, // 18:00 - 20:30
-  0.236, 0.219, 0.204, 0.192, 0.182, 0.174, // 21:00 - 23:30
+  0.150, 0.145, 0.143, 0.143, 0.144, 0.146, 0.150, 0.150, 0.152, 0.155, 0.158, 0.160,
+  0.165, 0.170, 0.178, 0.185, 0.190, 0.195, 0.198, 0.200, 0.205, 0.210, 0.215, 0.220,
+  0.225, 0.230, 0.235, 0.240, 0.250, 0.262, 0.300, 0.320, 0.326, 0.320, 0.300, 0.280,
+  0.260, 0.245, 0.230, 0.215, 0.205, 0.195, 0.185, 0.178, 0.170, 0.162, 0.158, 0.154,
 ];
 
 export const CHEAP_MAX = 0.2;
@@ -43,6 +32,32 @@ export function setLivePrices(prices: number[], source: string) {
 }
 export function priceSource(): string { return PRICE_SOURCE; }
 export function activePrices(): number[] { return LIVE_PRICES ?? HALF_HOURLY_PRICES; }
+export function hasLivePrices(): boolean { return LIVE_PRICES !== null; }
+
+const DUBLIN = 'Europe/Dublin';
+
+function dublinParts(date: Date) {
+  const fmt = new Intl.DateTimeFormat('en-IE', {
+    timeZone: DUBLIN,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const parts: Record<string, string> = {};
+  for (const p of fmt.formatToParts(date)) {
+    if (p.type !== 'literal') parts[p.type] = p.value;
+  }
+  return parts;
+}
+
+/** CSS color band for calendar cells — same thresholds as Dashboard tiers. */
+export function priceBandCss(price: number): string {
+  const tier = tierFor(price);
+  return tier === 'cheap' ? 'var(--cheap)' : tier === 'moderate' ? 'var(--moderate)' : 'var(--expensive)';
+}
 
 export type Tier = 'cheap' | 'moderate' | 'expensive';
 
@@ -64,9 +79,12 @@ export function tierTint(tier: Tier): string {
   return { cheap: colors.cheapTint, moderate: colors.moderateTint, expensive: colors.expensiveTint }[tier];
 }
 
-/** Index 0-47 of the half-hour slot containing `date`. */
+/** Index 0-47 of the half-hour slot containing `date` (Irish local time). */
 export function slotFor(date: Date = new Date()): number {
-  return Math.floor((date.getHours() * 60 + date.getMinutes()) / 30);
+  const p = dublinParts(date);
+  const h = parseInt(p.hour, 10) % 24;
+  const m = parseInt(p.minute, 10);
+  return Math.min(47, Math.floor((h * 60 + m) / 30));
 }
 
 export function priceAt(slot: number): number {
@@ -235,7 +253,7 @@ export function hourlyAverages(): number[] {
 }
 
 export function dayStats() {
-  const prices = LIVE_PRICES ?? HALF_HOURLY_PRICES;
+  const prices = activePrices();
   const min = Math.min(...prices);
   const max = Math.max(...prices);
   const avg = prices.reduce((a, b) => a + b, 0) / prices.length;

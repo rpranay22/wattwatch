@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   slotFor, slotLabel, tierLabel, formatPrice, formatEuro,
   cheapestWindow, dayStats, usageAdvice, isLiveEntsoSource,
@@ -31,11 +31,12 @@ function SavingsCard({ label, period }: { label: string; period: SavingsPeriod |
 }
 
 export function Dashboard() {
-  const { priceSource } = useAppData();
-  const now = slotFor();
-  const advice = usageAdvice(now);
-  const { min, max, avg } = dayStats();
-  const win = cheapestWindow(now, 6);
+  const { priceSource, priceTick } = useAppData();
+  const [minuteTick, setMinuteTick] = useState(0);
+  const now = useMemo(() => slotFor(), [minuteTick]);
+  const advice = useMemo(() => usageAdvice(now), [now, priceTick]);
+  const { min, max, avg } = useMemo(() => dayStats(), [now, priceTick]);
+  const win = useMemo(() => cheapestWindow(now, 6), [now, priceTick]);
   const live = isLiveEntsoSource(priceSource);
 
   const [savings, setSavings] = useState<{
@@ -47,6 +48,11 @@ export function Dashboard() {
 
   useEffect(() => {
     api.getSavings().then(setSavings).catch(() => {});
+  }, [priceTick]);
+
+  useEffect(() => {
+    const id = setInterval(() => setMinuteTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
   }, []);
 
   const ringColor = advice.tier === 'cheap' ? 'var(--cheap)' : advice.tier === 'moderate' ? 'var(--moderate)' : 'var(--expensive)';

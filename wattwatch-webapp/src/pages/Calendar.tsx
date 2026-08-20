@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import { formatPrice } from '../lib/pricing';
+import { formatPrice, priceBandCss } from '../lib/pricing';
 
 interface DayUsage { day: string; kwh: number; cost: number; avg_price: number; peak_price: number; low_price: number; best_window: string; }
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const WEEKDAYS = ['Mo','Tu','We','Th','Fr','Sa','Su'];
-
-function band(avg: number) { return avg < 0.20 ? 'var(--cheap)' : avg < 0.24 ? 'var(--moderate)' : 'var(--expensive)'; }
 
 export function Calendar() {
   const now = new Date();
@@ -34,7 +32,7 @@ export function Calendar() {
 
   return (
     <>
-      <div className="page-head"><h1>Usage Calendar</h1><p>Your daily electricity cost, coloured by average price.</p></div>
+      <div className="page-head"><h1>Usage Calendar</h1><p>Daily usage with ENTSO-E day-ahead prices — same source as the dashboard.</p></div>
       <div className="grid grid-2">
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -53,7 +51,7 @@ export function Calendar() {
                   <button key={d} onClick={() => u && setSelected(iso(d))} disabled={!u}
                     style={{ aspectRatio: '1', borderRadius: 10, background: on ? 'var(--brand-tint)' : 'transparent', display: 'grid', placeItems: 'center', gap: 3, cursor: u ? 'pointer' : 'default' }}>
                     <span style={{ fontSize: 13, color: u ? 'var(--ink)' : 'var(--border)' }}>{d}</span>
-                    {u && <span style={{ width: 6, height: 6, borderRadius: 3, background: band(u.avg_price) }} />}
+                    {u && <span style={{ width: 6, height: 6, borderRadius: 3, background: priceBandCss(u.avg_price) }} />}
                   </button>
                 );
               })}
