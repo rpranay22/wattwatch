@@ -7,7 +7,6 @@ import { api } from './lib/api';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
-import { Onboarding } from './pages/Onboarding';
 import { Dashboard } from './pages/Dashboard';
 import { Analytics } from './pages/Analytics';
 import { Alerts } from './pages/Alerts';
@@ -29,24 +28,27 @@ function Loading() {
   return <div style={{ display: 'grid', placeItems: 'center', height: '100vh', color: 'var(--muted)' }}>Loading…</div>;
 }
 
-// Signed in, but has the user finished onboarding? If not, show it first.
+// Ensure onboarding record exists (supplier pulled from profile on the API).
+// Household/device questions are skipped — users go straight to the app after login.
 function Gate({ children }: { children: JSX.Element }) {
   const { ready, user } = useAuth();
   const [checked, setChecked] = useState(false);
-  const [onboarded, setOnboarded] = useState(false);
 
   useEffect(() => {
     if (!user) { setChecked(false); return; }
     api.getOnboarding()
-      .then((o: any) => setOnboarded(!!o))
-      .catch(() => setOnboarded(true)) // if the check fails, don't block the app
+      .then(async (o: any) => {
+        if (!o) {
+          await api.saveOnboarding({ devices: [], householdSize: null, supplier: null });
+        }
+      })
+      .catch(() => {}) // don't block the app if onboarding sync fails
       .finally(() => setChecked(true));
   }, [user]);
 
   if (!ready) return <Loading />;
   if (!user) return <Navigate to="/login" replace />;
   if (!checked) return <Loading />;
-  if (!onboarded) return <Onboarding onDone={() => setOnboarded(true)} />;
   return children;
 }
 

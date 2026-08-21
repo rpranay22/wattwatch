@@ -16,7 +16,7 @@ interface AnalyticsData {
 }
 
 const RANGE_WORD: Record<(typeof RANGES)[number], string> = {
-  Hourly: 'today (by half-hour)',
+  Hourly: 'today (by hour)',
   Daily: 'the last 7 days',
   Weekly: 'the last 8 weeks',
   Monthly: 'the last 12 months',
@@ -31,8 +31,15 @@ export function Analytics() {
   useEffect(() => {
     setLoading(true);
     setError(null);
+    setSeries(null);
     api.getPriceAnalytics(range.toLowerCase())
-      .then(setSeries)
+      .then((data) => {
+        if (data.range !== range) {
+          setError(`Unexpected chart data (expected ${range}, got ${data.range}). Redeploy the API.`);
+          return;
+        }
+        setSeries(data);
+      })
       .catch((e: Error) => { setSeries(null); setError(e.message); })
       .finally(() => setLoading(false));
   }, [range]);
@@ -40,7 +47,7 @@ export function Analytics() {
   const chartData = series?.labels.map((label, i) => ({ label, price: series.data[i] })) ?? [];
   const { min = 0, max = 0, avg = 0, minLabel = '—', maxLabel = '—' } = series?.summary ?? {};
   const rangeWord = RANGE_WORD[range];
-  const tickInterval = range === 'Hourly' ? 3 : range === 'Monthly' ? 1 : 0;
+  const tickInterval = range === 'Hourly' ? 2 : 0;
 
   return (
     <>

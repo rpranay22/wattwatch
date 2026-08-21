@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "test": "node test/api.test.mjs && node test/crmMapping.test.mjs && node test/entso.test.mjs && node test/crashSafety.test.mjs",
+    "test": "node test/api.test.mjs && node test/crmMapping.test.mjs && node test/entso.test.mjs && node test/priceAnalytics.test.mjs && node test/crashSafety.test.mjs",
     "init-db": "node src/create-admin.js",
     "add-user": "node src/create-user.js"
   },

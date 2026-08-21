@@ -9,7 +9,7 @@ const router = safeRouter();
 
 router.get('/analytics', async (req, res) => {
   try {
-    const range = String(req.query.range || 'daily');
+    const range = String(req.query.range || 'hourly');
     res.json(await getPriceAnalytics(range));
   } catch (e) {
     res.status(400).json({ error: e.message || 'Invalid analytics range' });

@@ -28,13 +28,10 @@ function buildSummary(range, title, unit, labels, data, source) {
   };
 }
 
-/** Map legacy tab names from older app builds. */
 function normalizeRange(range) {
   const key = String(range || 'hourly').toLowerCase();
-  if (key === 'daily') return 'hourly';
-  if (key === 'weekly') return 'daily';
-  if (key === 'yearly') return 'weekly';
-  return key;
+  if (['hourly', 'daily', 'weekly', 'monthly'].includes(key)) return key;
+  throw new Error('range must be hourly, daily, weekly, or monthly');
 }
 
 async function dailyAverageForDay(dayISO) {
@@ -47,15 +44,17 @@ export async function getPriceAnalytics(range) {
   const today = dublinDayKey();
   const key = normalizeRange(range);
 
-  // Hourly: today's 48 half-hour ENTSO slots
+  // Hourly: today's 24 hourly averages (from ENTSO half-hour slots)
   if (key === 'hourly') {
     const { prices, source, day } = await getHalfHourlyPrices(today);
-    const labels = Array.from({ length: 48 }, (_, i) => slotLabel(i));
-    const data = prices.slice(0, 48).map((p) => +Number(p).toFixed(4));
+    const labels = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`);
+    const data = Array.from({ length: 24 }, (_, h) =>
+      +(((prices[h * 2] + prices[h * 2 + 1]) / 2).toFixed(4)),
+    );
     const stats = statsFromPrices(prices);
     return {
       range: 'Hourly',
-      title: 'Half-hourly price — today',
+      title: 'Hourly price — today',
       unit: '€/kWh',
       labels,
       data,
