@@ -1,7 +1,7 @@
 // APP user auth. Login password is owned by CRM customers.passwordHash (shared DB).
 import { logActivity } from '../activity.js';
 import { hashPassword, requireUser, signUserToken, verifyPassword } from '../auth.js';
-import { resolveLoginPasswordHash, syncPasswordToCrm } from '../crmApiClient.js';
+import { resolveLoginPasswordHash, syncPasswordToCrm, deleteCustomerFromCrm } from '../crmApiClient.js';
 import { syncProfileFromCrm } from '../crmProfileSync.js';
 import { Profile, User } from '../models/index.js';
 import { safeRouter } from '../safeRouter.js';
@@ -100,6 +100,13 @@ router.delete('/account', requireUser, async (req, res) => {
   const hashForVerify = await resolveLoginPasswordHash(user.email) ?? user.password_hash;
   if (!(await verifyPassword(password, hashForVerify)))
     return res.status(400).json({ error: 'That password is not correct' });
+
+  const crmRemoved = await deleteCustomerFromCrm(user.email);
+  if (!crmRemoved) {
+    return res.status(502).json({
+      error: 'Could not remove your account from our system. Please try again or contact support.',
+    });
+  }
 
   await logActivity({ userId: req.userId, action: 'account_delete' });
   await user.destroy();
