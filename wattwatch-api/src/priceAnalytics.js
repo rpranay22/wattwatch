@@ -28,21 +28,34 @@ function buildSummary(range, title, unit, labels, data, source) {
   };
 }
 
+/** Map legacy tab names from older app builds. */
+function normalizeRange(range) {
+  const key = String(range || 'hourly').toLowerCase();
+  if (key === 'daily') return 'hourly';
+  if (key === 'weekly') return 'daily';
+  if (key === 'yearly') return 'weekly';
+  return key;
+}
+
+async function dailyAverageForDay(dayISO) {
+  const { prices, source } = await getHalfHourlyPrices(dayISO);
+  return { avg: statsFromPrices(prices).avg, source };
+}
+
 /** Real ENTSO-E price series for Analytics charts. */
 export async function getPriceAnalytics(range) {
   const today = dublinDayKey();
-  const key = String(range || 'daily').toLowerCase();
+  const key = normalizeRange(range);
 
-  if (key === 'daily') {
+  // Hourly: today's 48 half-hour ENTSO slots
+  if (key === 'hourly') {
     const { prices, source, day } = await getHalfHourlyPrices(today);
-    const labels = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`);
-    const data = Array.from({ length: 24 }, (_, h) =>
-      +(((prices[h * 2] + prices[h * 2 + 1]) / 2).toFixed(4)),
-    );
+    const labels = Array.from({ length: 48 }, (_, i) => slotLabel(i));
+    const data = prices.slice(0, 48).map((p) => +Number(p).toFixed(4));
     const stats = statsFromPrices(prices);
     return {
-      range: 'Daily',
-      title: 'Price through today (hourly average)',
+      range: 'Hourly',
+      title: 'Half-hourly price — today',
       unit: '€/kWh',
       labels,
       data,
@@ -58,54 +71,100 @@ export async function getPriceAnalytics(range) {
     };
   }
 
-  if (key === 'weekly') {
+  // Daily: one average per day for the last 7 days
+  if (key === 'daily') {
     const labels = [];
     const data = [];
     let source = '';
     for (let i = 6; i >= 0; i--) {
       const dayISO = offsetDublinDay(today, -i);
-      const { prices, source: s } = await getHalfHourlyPrices(dayISO);
+      const { avg, source: s } = await dailyAverageForDay(dayISO);
       source = s;
       labels.push(shortDayLabel(dayISO));
-      data.push(+statsFromPrices(prices).avg.toFixed(4));
+      data.push(+avg.toFixed(4));
     }
-    return buildSummary('Weekly', 'Daily average — last 7 days', '€/kWh avg', labels, data, source);
+    return buildSummary(
+      'Daily',
+      'Daily average — last 7 days',
+      '€/kWh avg',
+      labels,
+      data,
+      source,
+    );
   }
 
-  if (key === 'monthly') {
-    const [y, mo] = today.split('-').map(Number);
+  // Weekly: one average per week for the last 8 weeks
+  if (key === 'weekly') {
     const labels = [];
     const data = [];
     let source = '';
-    const dayNum = parseInt(today.split('-')[2], 10);
-    for (let d = 1; d <= dayNum; d++) {
-      const dayISO = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const { prices, source: s } = await getHalfHourlyPrices(dayISO);
-      source = s;
-      labels.push(String(d));
-      data.push(+statsFromPrices(prices).avg.toFixed(4));
-    }
-    return buildSummary('Monthly', 'Daily average — this month', '€/kWh avg', labels, data, source);
-  }
-
-  if (key === 'yearly') {
-    const labels = [];
-    const data = [];
-    let source = '';
-    for (let w = 11; w >= 0; w--) {
-      const weekDays = [];
-      for (let d = 0; d < 7; d++) weekDays.push(offsetDublinDay(today, -(w * 7 + d)));
+    for (let w = 7; w >= 0; w--) {
       let sum = 0;
-      for (const dayISO of weekDays) {
-        const { prices, source: s } = await getHalfHourlyPrices(dayISO);
+      for (let d = 0; d < 7; d++) {
+        const dayISO = offsetDublinDay(today, -(w * 7 + d));
+        const { avg, source: s } = await dailyAverageForDay(dayISO);
         source = s;
-        sum += statsFromPrices(prices).avg;
+        sum += avg;
       }
       labels.push(w === 0 ? 'This week' : `${w}w ago`);
       data.push(+(sum / 7).toFixed(4));
     }
-    return buildSummary('Yearly', 'Weekly average — last 12 weeks', '€/kWh avg', labels, data, source);
+    return buildSummary(
+      'Weekly',
+      'Weekly average — last 8 weeks',
+      '€/kWh avg',
+      labels,
+      data,
+      source,
+    );
   }
 
-  throw new Error('range must be daily, weekly, monthly, or yearly');
+  // Monthly: one average per calendar month for the last 12 months
+  if (key === 'monthly') {
+    const labels = [];
+    const data = [];
+    let source = '';
+    const [todayY, todayMo] = today.split('-').map(Number);
+
+    for (let i = 11; i >= 0; i--) {
+      let mo = todayMo - i;
+      let y = todayY;
+      while (mo < 1) {
+        mo += 12;
+        y -= 1;
+      }
+      const daysInMonth = new Date(y, mo, 0).getDate();
+      const isCurrentMonth = y === todayY && mo === todayMo;
+      const lastDay = isCurrentMonth ? parseInt(today.split('-')[2], 10) : daysInMonth;
+
+      let sum = 0;
+      let count = 0;
+      for (let d = 1; d <= lastDay; d++) {
+        const dayISO = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        if (dayISO > today) break;
+        const { avg, source: s } = await dailyAverageForDay(dayISO);
+        source = s;
+        sum += avg;
+        count += 1;
+      }
+
+      const monthLabel = new Date(Date.UTC(y, mo - 1, 1)).toLocaleDateString('en-IE', {
+        month: 'short',
+        year: y === todayY ? undefined : '2-digit',
+        timeZone: 'UTC',
+      });
+      labels.push(monthLabel);
+      data.push(count ? +(sum / count).toFixed(4) : 0);
+    }
+    return buildSummary(
+      'Monthly',
+      'Monthly average — last 12 months',
+      '€/kWh avg',
+      labels,
+      data,
+      source,
+    );
+  }
+
+  throw new Error('range must be hourly, daily, weekly, or monthly');
 }

@@ -3,7 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { formatPrice } from '../lib/pricing';
 import { api } from '../lib/api';
 
-const RANGES = ['Daily', 'Weekly', 'Monthly', 'Yearly'] as const;
+const RANGES = ['Hourly', 'Daily', 'Weekly', 'Monthly'] as const;
 
 interface AnalyticsData {
   range: string;
@@ -15,8 +15,15 @@ interface AnalyticsData {
   summary: { min: number; max: number; avg: number; minLabel: string; maxLabel: string };
 }
 
+const RANGE_WORD: Record<(typeof RANGES)[number], string> = {
+  Hourly: 'today (by half-hour)',
+  Daily: 'the last 7 days',
+  Weekly: 'the last 8 weeks',
+  Monthly: 'the last 12 months',
+};
+
 export function Analytics() {
-  const [range, setRange] = useState<(typeof RANGES)[number]>('Daily');
+  const [range, setRange] = useState<(typeof RANGES)[number]>('Hourly');
   const [series, setSeries] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,13 +39,14 @@ export function Analytics() {
 
   const chartData = series?.labels.map((label, i) => ({ label, price: series.data[i] })) ?? [];
   const { min = 0, max = 0, avg = 0, minLabel = '—', maxLabel = '—' } = series?.summary ?? {};
-  const rangeWord = range === 'Daily' ? 'today' : range === 'Weekly' ? 'the last 7 days' : range === 'Monthly' ? 'this month' : 'the last 12 weeks';
+  const rangeWord = RANGE_WORD[range];
+  const tickInterval = range === 'Hourly' ? 3 : range === 'Monthly' ? 1 : 0;
 
   return (
     <>
       <div className="page-head">
         <h1>Analytics</h1>
-        <p>ENTSO-E day-ahead prices — same data as the dashboard and calendar.</p>
+        <p>ENTSO-E day-ahead prices — hourly, daily, weekly and monthly views.</p>
       </div>
 
       <div style={{ marginBottom: 18 }}>
@@ -53,9 +61,9 @@ export function Analytics() {
 
       <div className="grid grid-3" style={{ marginBottom: 16 }}>
         <div className="card kpi">
-          <div className="label">Average {rangeWord}</div>
+          <div className="label">Average across {rangeWord}</div>
           <div className="value">{loading ? '…' : formatPrice(avg)}</div>
-          <div className="sub">per kWh</div>
+          <div className="sub">{series?.unit ?? 'per kWh'}</div>
         </div>
         <div className="card kpi">
           <div className="label">Cheapest</div>
@@ -77,13 +85,28 @@ export function Analytics() {
           <ResponsiveContainer width="100%" height={320}>
             <LineChart data={chartData} margin={{ top: 10, right: 20, bottom: 0, left: -10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--divider)" />
-              <XAxis dataKey="label" stroke="var(--muted)" fontSize={12} />
+              <XAxis
+                dataKey="label"
+                stroke="var(--muted)"
+                fontSize={11}
+                interval={tickInterval}
+                angle={range === 'Hourly' ? -45 : 0}
+                textAnchor={range === 'Hourly' ? 'end' : 'middle'}
+                height={range === 'Hourly' ? 50 : 30}
+              />
               <YAxis stroke="var(--muted)" fontSize={12} tickFormatter={(v) => `€${v.toFixed(2)}`} domain={['auto', 'auto']} />
               <Tooltip
                 formatter={(v: number) => [formatPrice(v), 'Price']}
                 contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--ink)' }}
               />
-              <Line type="monotone" dataKey="price" stroke="var(--brand)" strokeWidth={3} dot={{ r: 3, fill: 'var(--brand)' }} activeDot={{ r: 6 }} />
+              <Line
+                type="monotone"
+                dataKey="price"
+                stroke="var(--brand)"
+                strokeWidth={range === 'Hourly' ? 2 : 3}
+                dot={range === 'Hourly' ? false : { r: 3, fill: 'var(--brand)' }}
+                activeDot={{ r: 6 }}
+              />
             </LineChart>
           </ResponsiveContainer>
         )}
